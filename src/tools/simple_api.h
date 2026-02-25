@@ -1,8 +1,6 @@
 #ifndef _simple_api_h_
 #define _simple_api_h_
 
-#include "hal_data.h"
-
 // ! ========================= GPIO / IOPORT 简 化 宏 ========================= ! //
 
 /**

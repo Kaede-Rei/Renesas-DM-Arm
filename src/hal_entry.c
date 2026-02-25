@@ -1,5 +1,20 @@
 #include "hal_data.h"
-#include "include.h"
+
+// 工具库
+#include "ra/fsp/src/bsp/mcu/all/bsp_io.h"
+#include "tools/simple_api.h"
+#include "tools/ring_buf.h"
+
+// 标准库
+#include <stdio.h>
+
+// 驱动层
+
+
+// 服务层
+
+
+// 应用层
 
 #if (1 == BSP_MULTICORE_PROJECT) && BSP_TZ_SECURE_BUILD
 bsp_ipc_semaphore_handle_t g_core_start_semaphore =
@@ -8,9 +23,14 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
 };
 #endif
 
+/**
+ * @brief 系统初始化函数
+ * @note 该函数在 hal_entry() 中被调用，用于初始化系统资源和外设
+ */
 void sys_init(void);
 void sys_init(void) {
     g_uart7.p_api->open(g_uart7.p_ctrl, g_uart7.p_cfg);
+    gpio_write(BSP_IO_PORT_04_PIN_00, BSP_IO_LEVEL_LOW);
 
     printf("System Init Complete!\r\n");
 }
@@ -29,7 +49,7 @@ void hal_entry(void) {
     uint8_t rx_buffer[256];
     RingBuf_t buf;
     RingBuf(&buf, rx_buffer, sizeof(rx_buffer), 1);
-    
+
     buf.write(&buf, 10);
 
     while(1) {

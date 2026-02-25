@@ -1,9 +1,6 @@
-#include "retarget.h"
-
-#include <stdio.h>
 #include <sys/stat.h>
 #include "hal_data.h"
-#include "drvl/callback.h"
+#include "drive/callback.h"
 
 int _write(int file, char* ptr, int len);
 int _read(int file, char* ptr, int len);
