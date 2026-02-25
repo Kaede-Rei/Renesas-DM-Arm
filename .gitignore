@@ -3,4 +3,5 @@
 /.vscode
 /build
 /cmake
+/.VSCodeCounter
 0_Debug.code-workspace
