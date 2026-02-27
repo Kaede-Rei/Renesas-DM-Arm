@@ -13,17 +13,25 @@
         </peripheral>
         <peripheral name="PORT4.CM33" group="PORT">
             <slot name="P400.CM33" secure="true"/>
+            <slot name="P401.CM33" secure="true"/>
+            <slot name="P402.CM33" secure="true"/>
         </peripheral>
         <peripheral name="PORT6.CM33" group="PORT">
             <slot name="P613.CM33" secure="true"/>
             <slot name="P614.CM33" secure="true"/>
         </peripheral>
         <peripheral name="SCI7.CM33" group="SCI" security="s"/>
+        <peripheral name="CANFD0.CM33" group="CANFD" security="s"/>
         <peripheral name="ICU.CM33">
             <slot name="IRQ0.CM33" secure="true"/>
             <slot name="IRQ1.CM33" secure="true"/>
             <slot name="IRQ2.CM33" secure="true"/>
             <slot name="IRQ3.CM33" secure="true"/>
+            <slot name="IRQ4.CM33" secure="true"/>
+            <slot name="IRQ5.CM33" secure="true"/>
+            <slot name="IRQ6.CM33" secure="true"/>
+            <slot name="IRQ7.CM33" secure="true"/>
+            <slot name="IRQ8.CM33" secure="true"/>
         </peripheral>
     </partition>
 </azone>

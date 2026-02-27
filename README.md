@@ -22,3 +22,18 @@ Example:
 ```cd "D:/Renesas-Workspace/0_Debug" && code .```
 
 - Click build in VS Code status bar
+
+| **缩写**       | **全称**                         | **中文含义**   | **经典 CAN 状态**            | **CAN FD 状态**               |
+| -------------- | -------------------------------- | -------------- | ---------------------------- | ----------------------------- |
+| **SOF**        | Start of Frame                   | 帧起始         | 1位，开始信号                | 1位，开始信号                 |
+| **Identifier** | Identifier                       | 标识符 (ID)    | 11位或29位 (决定优先级)      | 同左                          |
+| **IDE**        | Identifier Extension             | 标识符扩展位   | 区分标准ID还是扩展ID         | 同左 0为标准1为扩展                          |
+| **FDF / EDL**  | FD Format / Extended Data Length | FD 格式标志    | **必须为 0** (此时是普通CAN) | **必须为 1** (标记进入FD格式) |
+| **res**        | Reserved bit                     | 保留位         | 1位                          | 变为 **r0**                   |
+| **BRS**        | **Bit Rate Switch**              | **位速率切换** | **无此位**                   | **1=加速到5M / 0=保持1M**     |
+| **ESI**        | Error State Indicator            | 错误状态指示   | 无此位                       | 显示节点是否处于错误状态      |
+| **DLC**        | Data Length Code                 | 数据长度代码   | 4位 (最大 8 字节)            | 4位 (可代表 0-64 字节)        |
+| **Data Field** | Data Field                       | 数据段         | **最大 8 字节**              | **最大 64 字节**              |
+| **CRC**        | Cyclic Redundancy Check          | 循环冗余校验   | 15位                         | 17位或21位 (变长且更强)       |
+| **ACK**        | Acknowledge                      | 应答位         | 1位确认接收                  | 同左 (回到 1M 速度接收)       |
+| **EOF**        | End of Frame                     | 帧结束         | 7位隐性电平                  | 同左                          |

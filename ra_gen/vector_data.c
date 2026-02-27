@@ -8,6 +8,11 @@
             [1] = sci_uart_txi_isr, /* SCI7 TXI (Transmit data empty) */
             [2] = sci_uart_tei_isr, /* SCI7 TEI (Transmit end) */
             [3] = sci_uart_eri_isr, /* SCI7 ERI (Receive error) */
+            [4] = canfd_error_isr, /* CAN0 CHERR (Channel  error) */
+            [5] = canfd_channel_tx_isr, /* CAN0 TX (Transmit interrupt) */
+            [6] = canfd_common_fifo_rx_isr, /* CAN0 COMFRX (Common FIFO receive interrupt) */
+            [7] = canfd_error_isr, /* CAN GLERR (Global error) */
+            [8] = canfd_rx_fifo_isr, /* CAN RXF (Global receive FIFO interrupt) */
         };
         #if BSP_FEATURE_ICU_HAS_IELSR
         const bsp_interrupt_event_t g_interrupt_event_link_select[BSP_ICU_VECTOR_NUM_ENTRIES] =
@@ -16,6 +21,11 @@
             [1] = BSP_PRV_VECT_ENUM(EVENT_SCI7_TXI,GROUP1), /* SCI7 TXI (Transmit data empty) */
             [2] = BSP_PRV_VECT_ENUM(EVENT_SCI7_TEI,GROUP2), /* SCI7 TEI (Transmit end) */
             [3] = BSP_PRV_VECT_ENUM(EVENT_SCI7_ERI,GROUP3), /* SCI7 ERI (Receive error) */
+            [4] = BSP_PRV_VECT_ENUM(EVENT_CAN0_CHERR,GROUP4), /* CAN0 CHERR (Channel  error) */
+            [5] = BSP_PRV_VECT_ENUM(EVENT_CAN0_TX,GROUP5), /* CAN0 TX (Transmit interrupt) */
+            [6] = BSP_PRV_VECT_ENUM(EVENT_CAN0_COMFRX,GROUP6), /* CAN0 COMFRX (Common FIFO receive interrupt) */
+            [7] = BSP_PRV_VECT_ENUM(EVENT_CAN_GLERR,GROUP7), /* CAN GLERR (Global error) */
+            [8] = BSP_PRV_VECT_ENUM(EVENT_CAN_RXF,GROUP0), /* CAN RXF (Global receive FIFO interrupt) */
         };
         #endif
         #endif

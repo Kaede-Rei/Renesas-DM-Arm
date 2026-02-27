@@ -1,9 +1,9 @@
-#ifndef _callback_h_
-#define _callback_h_
+#ifndef _d_callback_h_
+#define _d_callback_h_
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
-typedef enum{
+typedef enum {
     UART_START = 0,
     UART7,
     UART_END
