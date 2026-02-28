@@ -10,9 +10,10 @@
 
 // 驱动层
 #include "drive/d_can.h"
+#include "drive/d_systick.h"
 
 // 服务层
-
+#include "service/s_delay.h"
 
 // 应用层
 
@@ -29,9 +30,19 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  */
 void sys_init(void);
 void sys_init(void) {
+    // 初始化 SysTick 定时器
+    if(d_systick_init() != FSP_SUCCESS) {
+        while(1);
+    }
+
     g_uart7.p_api->open(g_uart7.p_ctrl, g_uart7.p_cfg);
     gpio_write(BSP_IO_PORT_04_PIN_00, BSP_IO_LEVEL_LOW);
 
+    d_can_init();
+
+    s_delay_init(d_systick_get_ms, d_systick_is_timeout);
+
+    s_delay_ms(500);
     printf("System Init Complete!\r\n");
 }
 

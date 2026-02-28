@@ -2,12 +2,14 @@
 #include "hal_data.h"
 #include "r_can_api.h"
 
+#include "service/s_delay.h"
+
 #include <string.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
 // can rx 环形缓冲区容量
-#define CAN_RX_RING_CAPACITY    (16U)
+#define CAN_RX_RING_CAPACITY    16
 
 /**
  * @brief CAN 接收环形缓冲区结构体
@@ -120,8 +122,7 @@ CanErrorCode_e d_can_tx_complete(void) {
     uint8_t time_out = 100;
     while(!canfd0_cb.tx_complete && time_out > 0) {
         time_out--;
-        // TODO: sysTick 待完成
-        // delay_ms(1);
+        s_delay_ms(1);
     }
     CanErrorCode_e result = canfd0_cb.tx_complete ? CAN_SUCCESS : CAN_NOT_COMPLETE;
     canfd0_cb.tx_complete = false;
@@ -134,17 +135,16 @@ CanErrorCode_e d_can_tx_complete(void) {
  * @return CanErrorCode_e 枚举类型，表示操作结果
  */
 CanErrorCode_e d_can_rx_complete(void) {
-    if(can_rx_ring_size(&canfd0_cb.rx_ring) > 0U) {
+    if(can_rx_ring_size(&canfd0_cb.rx_ring) > 0) {
         return CAN_SUCCESS;
     }
 
     uint8_t time_out = 100;
     while(!canfd0_cb.rx_complete && time_out > 0) {
         time_out--;
-        // TODO: sysTick 待完成
-        // delay_ms(1);
+        s_delay_ms(1);
     }
-    CanErrorCode_e result = (canfd0_cb.rx_complete || (can_rx_ring_size(&canfd0_cb.rx_ring) > 0U)) ? CAN_SUCCESS : CAN_NOT_COMPLETE;
+    CanErrorCode_e result = (canfd0_cb.rx_complete || (can_rx_ring_size(&canfd0_cb.rx_ring) > 0)) ? CAN_SUCCESS : CAN_NOT_COMPLETE;
     canfd0_cb.rx_complete = false;
 
     return result;
@@ -230,9 +230,9 @@ static void can_rx_ring_init(CanRxRing_t* const ring) {
         return;
     }
 
-    ring->write_idx = 0U;
-    ring->read_idx = 0U;
-    ring->size = 0U;
+    ring->write_idx = 0;
+    ring->read_idx = 0;
+    ring->size = 0;
 }
 
 /**
@@ -278,13 +278,13 @@ static bool can_rx_ring_read(CanRxRing_t* const ring, can_frame_t* const frame) 
 
     irq_state = __get_PRIMASK();
     __disable_irq();
-    if(ring->size == 0U) {
+    if(ring->size == 0) {
         __set_PRIMASK(irq_state);
         return false;
     }
 
     *frame = ring->frames[ring->read_idx];
-    ring->read_idx = (uint16_t)((ring->read_idx + 1U) % CAN_RX_RING_CAPACITY);
+    ring->read_idx = (uint16_t)((ring->read_idx + 1) % CAN_RX_RING_CAPACITY);
     ring->size--;
     __set_PRIMASK(irq_state);
 
@@ -301,7 +301,7 @@ static uint16_t can_rx_ring_size(CanRxRing_t const* const ring) {
     uint32_t irq_state;
 
     if(ring == NULL) {
-        return 0U;
+        return 0;
     }
 
     irq_state = __get_PRIMASK();
