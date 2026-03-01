@@ -1,13 +1,35 @@
 #ifndef _d_can_h_
 #define _d_can_h_
 
-#include "hal_data.h"
+#include "hal_data.h"   // IWYU pragma: keep
 #include "r_can_api.h"
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
+/**
+ * @brief can0 写入数据的宏定义，简化函数调用
+ * @param id CAN ID
+ * @param data 要发送的数据
+ * @param length 要发送的数据长度
+ */
+#define d_can0_write(id, data, length) d_can_write(&g_canfd0, id, data, length)
+/**
+ * @brief can0 读取数据的宏定义，简化函数调用
+ * @param frame 指向存储接收数据的 CAN 帧结构体的指针
+ */
+#define d_can0_read(frame) d_can_read(&g_canfd0, frame)
+
 extern const canfd_afl_entry_t p_canfd0_afl[CANFD_CFG_AFL_CH0_RULE_NUM];
 
+/**
+ * @brief CAN 错误代码枚举类型
+ * @param CAN_SUCCESS 操作成功
+ * @param CAN_ERROR 操作失败
+ * @param CAN_NOT_COMPLETE 操作未完成
+ * @param CAN_BUSY CAN 正在忙碌
+ * @param CAN_OVERFLOW 接收缓冲区溢出
+ * @param CAN_EMPTY 接收缓冲区为空
+ */
 typedef enum {
     CAN_SUCCESS = 0,
     CAN_ERROR,
