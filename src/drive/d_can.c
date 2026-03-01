@@ -91,8 +91,8 @@ const canfd_afl_entry_t p_canfd0_afl[CANFD_CFG_AFL_CH0_RULE_NUM] =
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
 static void can_rx_ring_init(CanRxRing_t* const ring);
-static bool can_rx_ring_write(CanRxRing_t* const ring, can_frame_t const* const frame);
-static bool can_rx_ring_read(CanRxRing_t* const ring, can_frame_t* const frame);
+static CanErrorCode_e can_rx_ring_write(CanRxRing_t* const ring, can_frame_t const* const frame);
+static CanErrorCode_e can_rx_ring_read(CanRxRing_t* const ring, can_frame_t* const frame);
 static uint16_t can_rx_ring_size(CanRxRing_t const* const ring);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
@@ -212,11 +212,16 @@ CanErrorCode_e d_can_read(can_instance_t* const can_instance, can_frame_t* const
         return CAN_NOT_COMPLETE;
     }
 
+    CanErrorCode_e result;
     if(can_instance == &g_canfd0) {
-        return can_rx_ring_read(&canfd0_cb.rx_ring, frame) ? CAN_SUCCESS : CAN_ERROR;
+        result = can_rx_ring_read(&canfd0_cb.rx_ring, frame);
+        if(result == CAN_SUCCESS) canfd0_cb.rx_overflow = false;
+    }
+    else {
+        result = CAN_ERROR;
     }
 
-    return CAN_ERROR;
+    return result;
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
@@ -241,18 +246,18 @@ static void can_rx_ring_init(CanRxRing_t* const ring) {
  * @param frame 指向要写入的 CAN 帧的指针
  * @return true 表示写入成功，false 表示写入失败（如缓冲区已满）
  */
-static bool can_rx_ring_write(CanRxRing_t* const ring, can_frame_t const* const frame) {
+static CanErrorCode_e can_rx_ring_write(CanRxRing_t* const ring, can_frame_t const* const frame) {
     uint32_t irq_state;
 
     if((ring == NULL) || (frame == NULL)) {
-        return false;
+        return CAN_ERROR;
     }
 
     irq_state = __get_PRIMASK();
     __disable_irq();
     if(ring->size >= CAN_RX_RING_CAPACITY) {
         __set_PRIMASK(irq_state);
-        return false;
+        return CAN_OVERFLOW;
     }
 
     ring->frames[ring->write_idx] = *frame;
@@ -269,18 +274,19 @@ static bool can_rx_ring_write(CanRxRing_t* const ring, can_frame_t const* const 
  * @param frame 指向存储读取数据的 CAN 帧结构体的指针
  * @return true 表示读取成功，false 表示读取失败（如缓冲区为空）
  */
-static bool can_rx_ring_read(CanRxRing_t* const ring, can_frame_t* const frame) {
+static CanErrorCode_e can_rx_ring_read(CanRxRing_t* const ring, can_frame_t* const frame) {
     uint32_t irq_state;
 
     if((ring == NULL) || (frame == NULL)) {
-        return false;
+        return CAN_ERROR;
     }
 
     irq_state = __get_PRIMASK();
     __disable_irq();
+
     if(ring->size == 0) {
         __set_PRIMASK(irq_state);
-        return false;
+        return CAN_EMPTY;
     }
 
     *frame = ring->frames[ring->read_idx];
@@ -333,6 +339,7 @@ void canfd0_callback(can_callback_args_t* p_args) {
             canfd0_cb.rx_complete = true;
             break;
         }
-        default:break;
+        default:
+            break;
     }
 }

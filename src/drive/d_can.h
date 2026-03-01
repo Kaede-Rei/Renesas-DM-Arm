@@ -10,9 +10,11 @@ extern const canfd_afl_entry_t p_canfd0_afl[CANFD_CFG_AFL_CH0_RULE_NUM];
 
 typedef enum {
     CAN_SUCCESS = 0,
-    CAN_ERROR = -1,
-    CAN_NOT_COMPLETE = -2,
-    CAN_BUSY = -3,
+    CAN_ERROR,
+    CAN_NOT_COMPLETE,
+    CAN_BUSY,
+    CAN_OVERFLOW,
+    CAN_EMPTY,
 } CanErrorCode_e;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //

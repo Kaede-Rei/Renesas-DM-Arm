@@ -15,10 +15,10 @@
  */
 typedef enum {
     RING_BUF_OK = 0,
-    RING_BUF_ERR_NULL_PTR = -1,
-    RING_BUF_ERR_IN_USE = -2,
-    RING_BUF_ERR_FULL = -3,
-    RING_BUF_ERR_EMPTY = -4,
+    RING_BUF_ERR_NULL_PTR,
+    RING_BUF_ERR_IN_USE,
+    RING_BUF_ERR_FULL,
+    RING_BUF_ERR_EMPTY,
 } RingBufError_te;
 
 typedef struct RingBuf_t RingBuf_t;
