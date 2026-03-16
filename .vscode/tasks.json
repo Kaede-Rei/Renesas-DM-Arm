@@ -1,0 +1,27 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "烧录程序 (RA6M5)",
+            "type": "shell",
+            "command": "pyocd",
+            "args": [
+                "flash",
+                "-t",
+                "r7fa6m5bf",
+                "${workspaceFolder}/build/Debug/0_Debug.elf"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        }
+    ]
+}
