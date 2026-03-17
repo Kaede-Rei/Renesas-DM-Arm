@@ -4,6 +4,7 @@
 #include "d_systick.h"
 #include "service/s_delay.h"
 
+#include <stdio.h>
 #include <string.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
@@ -200,6 +201,7 @@ DmMotorErrorCode_e d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms) {
 
     uint8_t feedback[8];
     DmMotorErrorCode_e result = d_dm_get_feedback(id, feedback, timeout_ms);
+
     if(result != DM_MOTOR_SUCCESS) {
         return result;
     }

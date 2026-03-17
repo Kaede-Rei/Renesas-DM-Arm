@@ -8,6 +8,7 @@
 // 标准库
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/_types.h>
 
 // 驱动层
 #include "drive/d_led.h"
@@ -46,6 +47,7 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     d_led_on();
     printf("System Init Complete!\r\n");
 
+    // 测试电机
     d_dm_enable(0x01);
     printf("Enable DM 1!\r\n");
     d_dm_set_spd(0x01, 3.14f);
@@ -58,23 +60,24 @@ void sys_init(RingBuf_t* uart_rx_buf) {
 void hal_entry(void) {
     /* TODO: add your own code here */
 
-    int rx_data;
-
     uint8_t rx_buffer[256];
     RingBuf_t buf;
     RingBuf(&buf, rx_buffer, sizeof(rx_buffer), 1);
 
     sys_init(&buf);
 
-    uint16_t count = 0;
+    float pos = 3.14f;
+    int int_part = (int)pos;
+    int frac_part = (int)((pos - (float)int_part) * 1000);
 
     while(1) {
-        if(buf.read(&buf, (uint8_t*)&rx_data) == RING_BUF_OK) {
-            printf("read: %c\r\n", rx_data);
-        }
-        printf("now: %u\r\n", count);
-        count++;
-        s_delay_s(1);
+        // 测试电机
+        d_dm_get_pos(0x01, &pos, 1000);
+        int_part = (int)pos;
+        frac_part = (int)((pos - (float)int_part) * 1000);
+        if(frac_part < 0) frac_part = -frac_part;
+        printf("Motor Position: %d.%03d\r\n", int_part, frac_part);
+        s_delay_ms(500);
     }
 
     /* Wake up 2nd core if this is first core and we are inside a multicore project. */

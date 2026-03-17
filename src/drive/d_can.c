@@ -1,4 +1,5 @@
 #include "d_can.h"
+#include "drive/d_led.h"
 #include "hal_data.h"
 #include "r_can_api.h"
 
@@ -114,14 +115,12 @@ CanErrorCode_e d_can_init(void) {
 
     fsp_err_t err = g_canfd0.p_api->open(g_canfd0.p_ctrl, g_canfd0.p_cfg);
     if(err != FSP_SUCCESS) {
-        printf("Function:%s\tLine:%d\r\n", __FUNCTION__, __LINE__);
         return CAN_ERROR;
     }
     err = g_canfd0.p_api->modeTransition(g_canfd0.p_ctrl,
         CAN_OPERATION_MODE_NORMAL,
         CAN_TEST_MODE_DISABLED);
     if(err != FSP_SUCCESS) {
-        printf("Function:%s\tLine:%d\r\n", __FUNCTION__, __LINE__);
         return CAN_ERROR;
     }
 
@@ -308,7 +307,7 @@ static CanErrorCode_e can_rx_ring_read(CanRxRing_t* const ring, can_frame_t* con
     ring->size--;
     __set_PRIMASK(irq_state);
 
-    return true;
+    return CAN_SUCCESS;
 }
 
 /**
