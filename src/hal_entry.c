@@ -1,3 +1,4 @@
+#include "drive/d_dm_motor.h"
 #include "hal_data.h"
 
 // 工具库
@@ -36,16 +37,18 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     if(d_systick_init() != FSP_SUCCESS) {
         while(1);
     }
-
-    d_led_on();
+    s_delay_init(d_systick_get_ms, d_systick_is_timeout);
 
     d_uart_init(UART7, uart_rx_buf);
     d_can_init();
 
-    s_delay_init(d_systick_get_ms, d_systick_is_timeout);
-
-    s_delay_ms(500);
+    s_delay_ms(2000);
+    d_led_on();
     printf("System Init Complete!\r\n");
+
+    d_dm_enable(0x01);
+    printf("Enable DM 1!\r\n");
+    d_dm_set_spd(0x01, 3.14f);
 }
 
 /*******************************************************************************************************************//**
@@ -62,8 +65,6 @@ void hal_entry(void) {
     RingBuf(&buf, rx_buffer, sizeof(rx_buffer), 1);
 
     sys_init(&buf);
-
-    buf.write(&buf, 10);
 
     uint16_t count = 0;
 

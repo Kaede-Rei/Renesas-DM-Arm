@@ -4,6 +4,7 @@
 
 #include "service/s_delay.h"
 
+#include <stdio.h>
 #include <string.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
@@ -111,6 +112,19 @@ CanErrorCode_e d_can_init(void) {
     canfd0_cb.is_busy = false;
     canfd0_cb.rx_overflow = false;
 
+    fsp_err_t err = g_canfd0.p_api->open(g_canfd0.p_ctrl, g_canfd0.p_cfg);
+    if(err != FSP_SUCCESS) {
+        printf("Function:%s\tLine:%d\r\n", __FUNCTION__, __LINE__);
+        return CAN_ERROR;
+    }
+    err = g_canfd0.p_api->modeTransition(g_canfd0.p_ctrl,
+        CAN_OPERATION_MODE_NORMAL,
+        CAN_TEST_MODE_DISABLED);
+    if(err != FSP_SUCCESS) {
+        printf("Function:%s\tLine:%d\r\n", __FUNCTION__, __LINE__);
+        return CAN_ERROR;
+    }
+
     return CAN_SUCCESS;
 }
 
@@ -185,7 +199,7 @@ CanErrorCode_e d_can_write(can_instance_t* const can_instance, uint32_t id, uint
     }
     memcpy(frame.data, data, length);
 
-    fsp_err_t err = R_CANFD_Write(can_instance, CANFD_TX_MB_0, &frame);
+    fsp_err_t err = g_canfd0.p_api->write(g_canfd0.p_ctrl, CANFD_TX_MB_0, &frame);
     if(err != FSP_SUCCESS) {
         canfd0_cb.is_busy = false;
         return CAN_ERROR;
@@ -244,7 +258,7 @@ static void can_rx_ring_init(CanRxRing_t* const ring) {
  * @brief 向 CAN 接收环形缓冲区写入数据帧
  * @param ring 指向 CanRxRing_t 结构体的指针
  * @param frame 指向要写入的 CAN 帧的指针
- * @return true 表示写入成功，false 表示写入失败（如缓冲区已满）
+ * @return CanErrorCode_e 枚举类型，表示操作结果
  */
 static CanErrorCode_e can_rx_ring_write(CanRxRing_t* const ring, can_frame_t const* const frame) {
     uint32_t irq_state;
@@ -265,7 +279,7 @@ static CanErrorCode_e can_rx_ring_write(CanRxRing_t* const ring, can_frame_t con
     ring->size++;
     __set_PRIMASK(irq_state);
 
-    return true;
+    return CAN_SUCCESS;
 }
 
 /**
@@ -333,7 +347,7 @@ void canfd0_callback(can_callback_args_t* p_args) {
         // 当接收完成时，CAN事件将被触发
         case CAN_EVENT_RX_COMPLETE:
         {
-            if(!can_rx_ring_write(&canfd0_cb.rx_ring, &p_args->frame)) {
+            if(can_rx_ring_write(&canfd0_cb.rx_ring, &p_args->frame) != CAN_SUCCESS) {
                 canfd0_cb.rx_overflow = true;
             }
             canfd0_cb.rx_complete = true;

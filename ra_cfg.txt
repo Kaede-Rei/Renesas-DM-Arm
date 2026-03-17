@@ -520,9 +520,9 @@ FSP Configuration
       Bitrate: Manual: Data: Time Segment 1 (Tq): 5
       Bitrate: Manual: Data: Time Segment 2 (Tq): 2
       Bitrate: Manual: Data: Sync Jump Width (Tq): 1
-      Bitrate: Manual: Use manual settings: No
+      Bitrate: Manual: Use manual settings: Yes
       Interrupts: Callback: canfd0_callback
-      Transmit Interrupts: 
+      Transmit Interrupts: TXMB 0
       Channel Error Interrupts: 
       Interrupts: Channel Interrupt Priority Level: Priority 12
       Filter List Array: p_canfd0_afl

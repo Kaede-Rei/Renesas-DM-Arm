@@ -4,20 +4,20 @@
 
 can_bit_timing_cfg_t g_canfd0_bit_timing_cfg =
 {
-    /* Actual bitrate: 500000 Hz. Actual sample point: 75 %. */
+    /* Actual bitrate: 1000000 Hz. Actual sample point: 75 %. */
     .baud_rate_prescaler = 1,
-    .time_segment_1 = 59,
-    .time_segment_2 = 20,
+    .time_segment_1 = 29,
+    .time_segment_2 = 10,
     .synchronization_jump_width = 4
 };
 
 #if BSP_FEATURE_CANFD_FD_SUPPORT
 can_bit_timing_cfg_t g_canfd0_data_timing_cfg =
 {
-    /* Actual bitrate: 2000000 Hz. Actual sample point: 75 %. */
+    /* Actual bitrate: 5000000 Hz. Actual sample point: 75 %. */
     .baud_rate_prescaler = 1,
-    .time_segment_1 = 14,
-    .time_segment_2 = 5,
+    .time_segment_1 = 5,
+    .time_segment_2 = 2,
     .synchronization_jump_width = 1
 };
 #endif
@@ -73,7 +73,7 @@ canfd_global_cfg_t g_canfd_global_cfg =
 canfd_extended_cfg_t g_canfd0_extended_cfg =
 {
     .p_afl              = p_canfd0_afl,
-    .txmb_txi_enable    = ( 0ULL),
+    .txmb_txi_enable    = ((1ULL << 0) |  0ULL),
     .error_interrupts   = ( 0U),
 #if BSP_FEATURE_CANFD_FD_SUPPORT
     .p_data_timing      = &g_canfd0_data_timing_cfg,
