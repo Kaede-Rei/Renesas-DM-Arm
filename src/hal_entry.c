@@ -1,14 +1,16 @@
 #include "hal_data.h"
 
 // 工具库
-#include "ra/fsp/src/bsp/mcu/all/bsp_io.h"
-#include "tools/simple_api.h"
+// #include "tools/simple_api.h"
 #include "tools/ring_buf.h"
 
 // 标准库
+#include <stdint.h>
 #include <stdio.h>
 
 // 驱动层
+#include "drive/d_led.h"
+#include "drive/d_uart.h"
 #include "drive/d_can.h"
 #include "drive/d_systick.h"
 
@@ -28,16 +30,16 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  * @brief 系统初始化函数
  * @note 该函数在 hal_entry() 中被调用，用于初始化系统资源和外设
  */
-void sys_init(void);
-void sys_init(void) {
+void sys_init(RingBuf_t* uart_rx_buf);
+void sys_init(RingBuf_t* uart_rx_buf) {
     // 初始化 SysTick 定时器
     if(d_systick_init() != FSP_SUCCESS) {
         while(1);
     }
 
-    g_uart7.p_api->open(g_uart7.p_ctrl, g_uart7.p_cfg);
-    gpio_write(BSP_IO_PORT_04_PIN_00, BSP_IO_LEVEL_LOW);
+    d_led_on();
 
+    d_uart_init(UART7, uart_rx_buf);
     d_can_init();
 
     s_delay_init(d_systick_get_ms, d_systick_is_timeout);
@@ -53,20 +55,25 @@ void sys_init(void) {
 void hal_entry(void) {
     /* TODO: add your own code here */
 
-    sys_init();
-
     int rx_data;
 
     uint8_t rx_buffer[256];
     RingBuf_t buf;
     RingBuf(&buf, rx_buffer, sizeof(rx_buffer), 1);
 
+    sys_init(&buf);
+
     buf.write(&buf, 10);
 
+    uint16_t count = 0;
+
     while(1) {
-        printf("Enter a character: ");
-        scanf("%d", &rx_data);
-        printf("You entered: %d\r\n", rx_data);
+        if(buf.read(&buf, (uint8_t*)&rx_data) == RING_BUF_OK) {
+            printf("read: %c\r\n", rx_data);
+        }
+        printf("now: %u\r\n", count);
+        count++;
+        s_delay_s(1);
     }
 
     /* Wake up 2nd core if this is first core and we are inside a multicore project. */
