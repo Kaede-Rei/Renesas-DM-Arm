@@ -1,4 +1,7 @@
 function main()
+    % 初始化模型
+    clc; clearvars; close all;
+    
     % 相关参数
     dx = 0.244004;
     dy = 0.059971;
@@ -24,21 +27,123 @@ function main()
     dm_arm = SerialLink([L1 L2 L3 L4 L5 L6], 'name', 'DM-Arm');
     dm_arm.tool = trotx(pi);
 
-    q_test = [0, 0, 0, 0, 0, 0];
-    T_target = dm_arm.fkine(q_test).T;
+    % figure;
+    % dm_arm.plot(zeros(1,6));
+    % dm_arm.teach;
 
-    q0 = [0.1, 0.2, -0.1, 0.0, 0.1, 0.0];  % 初始猜测（移植时使用电机当前角度）
-    [q_sol, iter, err] = numerical_ik(dm_arm, T_target, q0);
+    % 设置目标位姿
+    % q_target = [0.2, 1.2, 1.5, 0.5, -0.4, 0.2];
+    % T_target = dm_arm.fkine(q_target).T;
 
-    fprintf('迭代次数: %d\n', iter);
-    fprintf('最终误差: %.2e\n', err);
-    disp('数值解关节角:'); disp(q_sol);
+    T_target = [1, 0, 0, 0.0;
+                0, -1, 0, 0.2;
+                0, 0, -1, 0.1;
+                0, 0, 0, 1];
 
-    T_check = dm_arm.fkine(q_sol).T;
-    disp('位姿残差:'); disp(T_target - T_check);
+    disp('-----------------------------------');
+    disp('正在寻找 DM-Arm 的所有可能逆解...');
+    
+    % 调用多解数值搜索
+    all_sols = get_multiple_ik_numerical(dm_arm, T_target);
+    
+    % 打印结果验证
+    for i = 1:size(all_sols, 1)
+        q_sol = all_sols(i, :);
+        T_check = dm_arm.fkine(q_sol).T;
+        err_pos = norm(T_target(1:3,4) - T_check(1:3,4));
+        
+        fprintf('-----------------------------------\n');
+        fprintf('解 %d:\n', i);
+        disp(q_sol);
+        fprintf('位置残差: %.2e m\n', err_pos);
+    end
 end
 
-%  数值逆解：阻尼最小二乘
+
+% 基于多起点的数值逆解搜索
+function unique_sols = get_multiple_ik_numerical(robot, T_target)
+    unique_sols = [];
+    
+    % 生成初始猜测种子 (Seeds)
+    % 这里模拟解析解的 8 种典型象限姿态：肩(前/后) x 肘(上/下) x 腕(翻/不翻)
+    % 加上一些随机种子以防陷入局部极小值
+    q_seeds = generate_heuristic_seeds(robot);
+    
+    options.max_iter = 200;
+    options.tol_pos = 1e-5;
+    options.tol_ori = 1e-4;
+    
+    for i = 1 : size(q_seeds, 1)
+        q0 = q_seeds(i, :);
+        
+        % 调用阻尼最小二乘求解器
+        [q_sol, iter, err] = numerical_ik(robot, T_target, q0, options);
+        
+        % 过滤：如果收敛成功
+        if err < 1e-4
+            % 过滤去重：检查是否与已找到的解重复
+            if is_unique_solution(unique_sols, q_sol, 1e-3)
+                unique_sols = [unique_sols; q_sol];
+            end
+        end
+    end
+
+    fprintf('迭代 %d 次，找到 %d 组唯一解！\n', iter, size(unique_sols, 1));
+end
+
+% 生成覆盖关节空间的启发式种子
+function seeds = generate_heuristic_seeds(robot)
+    seeds = [];
+    
+    % 提取限位
+    qmin = [robot.links.qlim]; qmin = qmin(1:2:end);
+    qmax = [robot.links.qlim]; qmax = qmax(2:2:end);
+    
+    % 构造 8 组典型的拓扑极限姿态
+    shoulder = [0, pi];       % 肩部向前/向后
+    elbow = [pi/4, 3*pi/4];   % 肘部上凸/下凹
+    wrist = [pi/4, -pi/4];    % 腕部翻转
+    
+    for s = shoulder
+        for e = elbow
+            for w = wrist
+                % 构造一个基础猜测，其他关节置 0
+                q_guess = [s, e, 0, w, 0, 0];
+                % 保证在限位内
+                q_guess = max(qmin, min(qmax, q_guess));
+                seeds = [seeds; q_guess];
+            end
+        end
+    end
+    
+    % 补充 8 个随机种子，保证空间覆盖率 (蒙特卡洛思想)
+    for i = 1:8
+        q_rand = qmin + rand(1, 6) .* (qmax - qmin);
+        seeds = [seeds; q_rand];
+    end
+end
+
+% 检查新解是否与已有解重复
+function is_unique = is_unique_solution(existing_sols, new_sol, tol)
+    if isempty(existing_sols)
+        is_unique = true;
+        return;
+    end
+    
+    is_unique = true;
+    for i = 1:size(existing_sols, 1)
+        % 计算关节角差异，考虑 2pi 环绕问题
+        diff = existing_sols(i, :) - new_sol;
+        diff = mod(diff + pi, 2*pi) - pi; 
+        
+        if norm(diff) < tol
+            is_unique = false;
+            break;
+        end
+    end
+end
+
+% 数值逆解：阻尼最小二乘
 function [q, iter, final_err] = numerical_ik(robot, T_target, q0, options)
 
     % 默认参数
@@ -78,7 +183,7 @@ function [q, iter, final_err] = numerical_ik(robot, T_target, q0, options)
         J = robot.jacob0(q);                               % 6x6
 
         % 阻尼最小二乘求解关节增量
-        %    dq = (J'J + λ²I)⁻¹ · J' · e
+        % dq = (J'J + λ²I)¹ · J' · e
         A  = J' * J + lambda^2 * eye(n);
         dq = A \ (J' * e);                                 % 6x1
 
@@ -102,8 +207,8 @@ function [q, iter, final_err] = numerical_ik(robot, T_target, q0, options)
     final_err = norm(e);
 end
 
-%  旋转矩阵 → 轴角（用于姿态误差）
-%  返回 ω = θ·n̂，模长为旋转角度，方向为旋转轴
+% 旋转矩阵 -> 轴角（用于姿态误差）
+% 返回 ω = θ·n̂，模长为旋转角度，方向为旋转轴
 function omega = rot2axisangle(R)
     % 利用反对称部分提取轴角（小角度近似下即 0.5 * [R32 - R23; R13 - R31; R21 - R12]）
     cos_theta = (trace(R) - 1) / 2;
@@ -123,12 +228,12 @@ function omega = rot2axisangle(R)
     end
 end
 
-%  角度归一化到 (-π, π]
+% 角度归一化到 (-π, π]
 function angle = normalize_angle(angle)
     angle = mod(angle + pi, 2*pi) - pi;
 end
 
-%  struct 字段安全读取
+% struct 字段安全读取
 function val = getopt(s, field, default)
     if isfield(s, field)
         val = s.(field);
