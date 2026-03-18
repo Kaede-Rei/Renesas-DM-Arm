@@ -4,7 +4,6 @@
 // 工具库
 // #include "tools/simple_api.h"
 #include "tools/ring_buf.h"
-// #include "tools/matrix/matrix.h"
 
 // 标准库
 #include <stdint.h>
@@ -19,6 +18,7 @@
 
 // 服务层
 #include "service/s_delay.h"
+#include "service/s_fk_ik.h"
 #include "tools/simple_api.h"
 
 // 应用层
@@ -53,6 +53,40 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     d_dm_enable(0x01);
     printf("Enable DM 1!\r\n");
     d_dm_set_spd(0x01, 3.14f);
+
+    // 测试 FK - IK
+    s_delay_ms(1000);
+    double dx = 0.244004;
+    double dy = 0.059971;
+    double phi = atan2(dy, dx);
+    double a3 = sqrt(pow(dx, 2) + pow(dy, 2));
+    ArmMDH_t mdh = {
+        .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
+        .a = { 0, 0.02, 0.264, a3, 0.061868, 0 },
+        .d = { 0.1, 0, 0, 0, 0, 0.19 },
+        .offset = { M_PI / 2, M_PI, phi - M_PI, -phi, M_PI / 2, 0 },
+        .qmin = { -2.0944, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
+        .qmax = { 2.0944, M_PI, 1.5 * M_PI, M_PI / 2, M_PI / 2, M_PI }
+    };
+    s_six_dof_init(&mdh);
+
+    SixDofJoint_t joints = { 0.2, 1.2, 1.5, 0.5, -0.4, 0.2 };
+    Pose_t pose;
+    s_six_dof_fk(&joints, &pose);
+    printf("FK Pose: X= "); printf_double(pose.position.x);
+    printf(" Y= "); printf_double(pose.position.y);
+    printf(" Z= "); printf_double(pose.position.z);
+    printf("\r\n");
+
+    SixDofJoint_t ik_joints;
+    s_six_dof_ik(&pose, &ik_joints, &joints);
+    printf("IK Joints: "); printf_double(ik_joints.joint_1);
+    printf("  "); printf_double(ik_joints.joint_2);
+    printf("  "); printf_double(ik_joints.joint_3);
+    printf("  "); printf_double(ik_joints.joint_4);
+    printf("  "); printf_double(ik_joints.joint_5);
+    printf("  "); printf_double(ik_joints.joint_6);
+    printf("\r\n");
 }
 
 /*******************************************************************************************************************//**
@@ -78,7 +112,7 @@ void hal_entry(void) {
             d_dm_update(&feedback);
         }
         if(s_nb_delay_ms(&dm_printf_task, 1000)) {
-            printf("DM %d Pos: ", feedback.id); printf_float(feedback.pos); printf("\r\n");
+            // printf("DM %d Pos: ", feedback.id); printf_float(feedback.pos); printf("\r\n");
         }
     }
 

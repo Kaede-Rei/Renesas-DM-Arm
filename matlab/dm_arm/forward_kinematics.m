@@ -28,7 +28,7 @@ function main()
     dm_arm.plot(zeros(1,6));
     dm_arm.teach;
 
-    q_test = [0, 0, 0, 0, 0, 0];
+    q_test = [0.2, 1.2, 1.5, 0.5, -0.4, 0.2];
 
     T_toolbox = dm_arm.fkine(q_test);
     T_custom = get_forward_kinematics(q_test, dm_arm);

@@ -27,18 +27,18 @@ function main()
     dm_arm = SerialLink([L1 L2 L3 L4 L5 L6], 'name', 'DM-Arm');
     dm_arm.tool = trotx(pi);
 
-    % figure;
-    % dm_arm.plot(zeros(1,6));
-    % dm_arm.teach;
+    figure;
+    dm_arm.plot(zeros(1,6));
+    dm_arm.teach;
 
     % 设置目标位姿
-    % q_target = [0.2, 1.2, 1.5, 0.5, -0.4, 0.2];
-    % T_target = dm_arm.fkine(q_target).T;
+    q_target = [0.2, 1.2, 1.5, 0.5, -0.4, 0.2];
+    T_target = dm_arm.fkine(q_target).T;
 
-    T_target = [1, 0, 0, 0.0;
-                0, -1, 0, 0.2;
-                0, 0, -1, 0.1;
-                0, 0, 0, 1];
+    % T_target = [1, 0, 0, 0.0;
+    %             0, -1, 0, 0.2;
+    %             0, 0, -1, 0.1;
+    %             0, 0, 0, 1];
 
     disp('-----------------------------------');
     disp('正在寻找 DM-Arm 的所有可能逆解...');
