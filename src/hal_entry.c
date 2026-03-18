@@ -51,7 +51,7 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     // 测试电机
     d_dm_enable(0x01);
     printf("Enable DM 1!\r\n");
-    d_dm_set_pos_spd(0x01, 3.14f, 3.14f);
+    d_dm_set_spd(0x01, 3.14f);
 }
 
 /*******************************************************************************************************************//**
@@ -76,7 +76,7 @@ void hal_entry(void) {
             d_dm_request_feedback(0x01);
             d_dm_update(&feedback);
         }
-        if(s_nb_delay_ms(&dm_printf_task, 500)) {
+        if(s_nb_delay_ms(&dm_printf_task, 1000)) {
             printf("DM %d Pos: ", feedback.id); printf_float(feedback.pos); printf("\r\n");
         }
     }
