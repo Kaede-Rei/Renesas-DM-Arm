@@ -4,6 +4,7 @@
 #include "d_systick.h"
 #include "service/s_delay.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -55,11 +56,11 @@ DmMotorErrorCode_e d_dm_disable(uint16_t id) {
 DmMotorErrorCode_e d_dm_set_mit(uint16_t id, float pos, float spd, float kp, float kd, float torque) {
     dm_switch_mode(id, DM_MOTOR_MODE_MIT);
 
-    uint16_t pos_bits = dm_f32_to_u16(pos, -12.5f, 12.5f, 16);
-    uint16_t spd_bits = dm_f32_to_u16(spd, -10.0f, 10.0f, 12);
-    uint16_t kp_bits = dm_f32_to_u16(kp, 0.0f, 500.0f, 12);
-    uint16_t kd_bits = dm_f32_to_u16(kd, 0.0f, 5.0f, 12);
-    uint16_t torque_bits = dm_f32_to_u16(torque, -28.0f, 28.0f, 12);
+    uint16_t pos_bits = dm_f32_to_u16(pos, -DM_MOTOR_POS_LIMIT, DM_MOTOR_POS_LIMIT, 16);
+    uint16_t spd_bits = dm_f32_to_u16(spd, -DM_MOTOR_SPD_LIMIT, DM_MOTOR_SPD_LIMIT, 12);
+    uint16_t kp_bits = dm_f32_to_u16(kp, 0.0f, DM_MOTOR_KP_LIMIT, 12);
+    uint16_t kd_bits = dm_f32_to_u16(kd, 0.0f, DM_MOTOR_KD_LIMIT, 12);
+    uint16_t torque_bits = dm_f32_to_u16(torque, -DM_MOTOR_TORQUE_LIMIT, DM_MOTOR_TORQUE_LIMIT, 12);
 
     uint8_t data[8];
     data[0] = (uint8_t)(pos_bits >> 8);
@@ -207,7 +208,7 @@ DmMotorErrorCode_e d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms) {
     }
 
     uint16_t pos_bits = (uint16_t)(((uint16_t)feedback[1] << 8) | feedback[2]);
-    *pos = dm_u16_to_f32(pos_bits, -12.5f, 12.5f, 16);
+    *pos = dm_u16_to_f32(pos_bits, -DM_MOTOR_POS_LIMIT, DM_MOTOR_POS_LIMIT, 16);
     return DM_MOTOR_SUCCESS;
 }
 
@@ -230,7 +231,7 @@ DmMotorErrorCode_e d_dm_get_spd(uint16_t id, float* spd, uint32_t timeout_ms) {
     }
 
     uint16_t spd_bits = (uint16_t)(((uint16_t)feedback[3] << 4) | ((uint16_t)(feedback[4] & 0xF0) >> 4));
-    *spd = dm_u16_to_f32(spd_bits, -10.0f, 10.0f, 12);
+    *spd = dm_u16_to_f32(spd_bits, -DM_MOTOR_SPD_LIMIT, DM_MOTOR_SPD_LIMIT, 12);
     return DM_MOTOR_SUCCESS;
 }
 
@@ -253,7 +254,53 @@ DmMotorErrorCode_e d_dm_get_torque(uint16_t id, float* torque, uint32_t timeout_
     }
 
     uint16_t torque_bits = (uint16_t)((((uint16_t)feedback[4] & 0x0F) << 8) | feedback[5]);
-    *torque = dm_u16_to_f32(torque_bits, -28.0f, 28.0f, 12);
+    *torque = dm_u16_to_f32(torque_bits, -DM_MOTOR_TORQUE_LIMIT, DM_MOTOR_TORQUE_LIMIT, 12);
+    return DM_MOTOR_SUCCESS;
+}
+
+/**
+ * @brief 请求电机发送反馈信息
+ * @param id 电机 ID
+ * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ */
+DmMotorErrorCode_e d_dm_request_feedback(uint16_t id) {
+    uint8_t can_id_l = (uint8_t)(id & 0xFF);
+    uint8_t can_id_h = (uint8_t)((id >> 8) & 0x07);
+    uint8_t req_data[8] = { can_id_l, can_id_h, 0xCC, 0x00, 0, 0, 0, 0 };
+
+    return dm_can_send(0x7FF, req_data);
+}
+
+/**
+ * @brief 更新电机反馈信息
+ * @param feedback 存储反馈数据的结构体指针
+ * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ */
+DmMotorErrorCode_e d_dm_update(DmMotorFeedback_t* feedback) {
+    if(feedback == NULL) {
+        return DM_MOTOR_ERROR;
+    }
+
+    uint8_t raw_feedback[8];
+    if(dm_can_rcvd(raw_feedback) != DM_MOTOR_SUCCESS) {
+        return DM_MOTOR_ERROR;
+    }
+
+    uint8_t id = (uint8_t)(raw_feedback[0] & 0x0F);
+    uint8_t err_code = (uint8_t)(raw_feedback[0] >> 4);
+    uint16_t pos_bits = (uint16_t)(((uint16_t)raw_feedback[1] << 8) | raw_feedback[2]);
+    float pos = dm_u16_to_f32(pos_bits, -DM_MOTOR_POS_LIMIT, DM_MOTOR_POS_LIMIT, 16);
+    uint16_t spd_bits = (uint16_t)(((uint16_t)raw_feedback[3] << 4) | ((uint16_t)(raw_feedback[4] & 0xF0) >> 4));
+    float spd = dm_u16_to_f32(spd_bits, -DM_MOTOR_SPD_LIMIT, DM_MOTOR_SPD_LIMIT, 12);
+    uint16_t torque_bits = (uint16_t)((((uint16_t)raw_feedback[4] & 0x0F) << 8) | raw_feedback[5]);
+    float torque = dm_u16_to_f32(torque_bits, -DM_MOTOR_TORQUE_LIMIT, DM_MOTOR_TORQUE_LIMIT, 12);
+
+    feedback->id = id;
+    feedback->err_code = err_code;
+    feedback->pos = pos;
+    feedback->spd = spd;
+    feedback->torque = torque;
+
     return DM_MOTOR_SUCCESS;
 }
 

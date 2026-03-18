@@ -1,7 +1,16 @@
 #ifndef _simple_api_h_
 #define _simple_api_h_
 
+#include <stdio.h>
+
 // ! ========================= GPIO / IOPORT 简 化 宏 ========================= ! //
+
+static inline void printf_float(float val) {
+    int int_part = (int)val;
+    int frac_part = (int)((val - (float)int_part) * 1000);
+    if(frac_part < 0) frac_part = -frac_part;
+    printf("%d.%03d", int_part, frac_part);
+}
 
 /**
  * @brief 读取引脚电平

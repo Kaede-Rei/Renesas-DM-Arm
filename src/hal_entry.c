@@ -18,6 +18,7 @@
 
 // 服务层
 #include "service/s_delay.h"
+#include "tools/simple_api.h"
 
 // 应用层
 
@@ -50,7 +51,7 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     // 测试电机
     d_dm_enable(0x01);
     printf("Enable DM 1!\r\n");
-    d_dm_set_spd(0x01, 3.14f);
+    d_dm_set_pos_spd(0x01, 3.14f, 3.14f);
 }
 
 /*******************************************************************************************************************//**
@@ -66,18 +67,18 @@ void hal_entry(void) {
 
     sys_init(&buf);
 
-    float pos = 3.14f;
-    int int_part = (int)pos;
-    int frac_part = (int)((pos - (float)int_part) * 1000);
+    ms_t dm_update_task = 0;
+    ms_t dm_printf_task = 0;
+    DmMotorFeedback_t feedback;
 
     while(1) {
-        // 测试电机
-        d_dm_get_pos(0x01, &pos, 1000);
-        int_part = (int)pos;
-        frac_part = (int)((pos - (float)int_part) * 1000);
-        if(frac_part < 0) frac_part = -frac_part;
-        printf("Motor Position: %d.%03d\r\n", int_part, frac_part);
-        s_delay_ms(500);
+        if(s_nb_delay_ms(&dm_update_task, 10)) {
+            d_dm_request_feedback(0x01);
+            d_dm_update(&feedback);
+        }
+        if(s_nb_delay_ms(&dm_printf_task, 500)) {
+            printf("DM %d Pos: ", feedback.id); printf_float(feedback.pos); printf("\r\n");
+        }
     }
 
     /* Wake up 2nd core if this is first core and we are inside a multicore project. */

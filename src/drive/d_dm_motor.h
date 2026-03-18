@@ -34,10 +34,26 @@ typedef enum {
     DM_MOTOR_MODE_POS_SPD_CUR = 4,
 } DmMotorMode_e;
 
+typedef struct {
+    uint16_t id;
+    uint8_t err_code;
+    float pos;
+    float spd;
+    float torque;
+} DmMotorFeedback_t;
+
 /// @brief 电机控制命令的长度，单位为字节
-#define DM_MOTOR_CMD_LEN                  8
-/// @brief 电机反馈的超时时间，单位为毫秒
-#define DM_MOTOR_FEEDBACK_TIMEOUT_MS      100
+#define DM_MOTOR_CMD_LEN                8
+/// @brief pos 上下限
+#define DM_MOTOR_POS_LIMIT              12.5f
+/// @brief spd 上下限
+#define DM_MOTOR_SPD_LIMIT              10.0f
+/// @brief torque 上下限
+#define DM_MOTOR_TORQUE_LIMIT           28.0f
+/// @brief kp 上限
+#define DM_MOTOR_KP_LIMIT               500.0f
+/// @brief kd 上限
+#define DM_MOTOR_KD_LIMIT               5.0f
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
@@ -55,5 +71,7 @@ DmMotorErrorCode_e d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms);
 DmMotorErrorCode_e d_dm_get_spd(uint16_t id, float* spd, uint32_t timeout_ms);
 DmMotorErrorCode_e d_dm_get_torque(uint16_t id, float* torque, uint32_t timeout_ms);
 
+DmMotorErrorCode_e d_dm_request_feedback(uint16_t id);
+DmMotorErrorCode_e d_dm_update(DmMotorFeedback_t* feedback);
 
 #endif
