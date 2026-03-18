@@ -5,6 +5,7 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
+/// @brief 机械臂的 MDH 参数
 static ArmMDH_t arm_mdh = { 0 };
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
@@ -25,12 +26,23 @@ static int  mat6_inverse(double* A, double* inv);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 初始化机械臂的 MDH 参数
+ * @param mdh 机械臂的 MDH 参数
+ * @return ArmErrorCode_t 错误码
+ */
 ArmErrorCode_t s_six_dof_init(const ArmMDH_t* mdh) {
     if(mdh == NULL) return ARM_ERROR;
     arm_mdh = *mdh;
     return ARM_SUCCESS;
 }
 
+/**
+ * @brief 计算机械臂的正运动学
+ * @param joints 机械臂的关节角度
+ * @param pose 输出的末端位姿
+ * @return ArmErrorCode_t 错误码
+ */
 ArmErrorCode_t s_six_dof_fk(const SixDofJoint_t* joints, Pose_t* pose) {
     if(joints == NULL || pose == NULL) return ARM_ERROR;
 
@@ -44,6 +56,13 @@ ArmErrorCode_t s_six_dof_fk(const SixDofJoint_t* joints, Pose_t* pose) {
     return ARM_SUCCESS;
 }
 
+/**
+ * @brief 计算机械臂的逆运动学，使用数值雅可比法
+ * @param pose 目标末端位姿
+ * @param joints 输出的关节角度解
+ * @param current_joints 当前关节角度，作为初始猜测
+ * @return ArmErrorCode_t 错误码
+ */
 ArmErrorCode_t s_six_dof_ik(const Pose_t* pose, SixDofJoint_t* joints, const SixDofJoint_t* current_joints) {
     if(!pose || !joints || !current_joints) return ARM_ERROR;
 
@@ -125,6 +144,12 @@ ArmErrorCode_t s_six_dof_ik(const Pose_t* pose, SixDofJoint_t* joints, const Six
     return ARM_ERROR_OUT_OF_REACH;
 }
 
+/**
+ * @brief 计算机械臂的所有逆运动学解，当前实现仅返回一个解
+ * @param pose 目标末端位姿
+ * @param joints 输出的所有关节角度解
+ * @return ArmErrorCode_t 错误码
+ */
 ArmErrorCode_t s_six_dof_all_ik(const Pose_t* pose, SixDofJointAll_t* joints) {
     if(!pose || !joints) return ARM_ERROR;
 
@@ -141,6 +166,11 @@ ArmErrorCode_t s_six_dof_all_ik(const Pose_t* pose, SixDofJointAll_t* joints) {
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 将关节结构体转换为数组形式，便于计算
+ * @param j 关节结构体
+ * @param q 输出的关节角度数组
+ */
 static void joints_to_array(const SixDofJoint_t* j, double* q) {
     q[0] = j->joint_1;
     q[1] = j->joint_2;
@@ -150,6 +180,11 @@ static void joints_to_array(const SixDofJoint_t* j, double* q) {
     q[5] = j->joint_6;
 }
 
+/**
+ * @brief 将关节角度数组转换回结构体形式
+ * @param q 关节角度数组
+ * @param j 输出的关节结构体
+ */
 static void array_to_joints(const double* q, SixDofJoint_t* j) {
     j->joint_1 = q[0];
     j->joint_2 = q[1];
@@ -159,11 +194,21 @@ static void array_to_joints(const double* q, SixDofJoint_t* j) {
     j->joint_6 = q[5];
 }
 
+/**
+ * @brief 生成 4x4 单位矩阵
+ * @param T 输出的单位矩阵
+ */
 static void mat4_identity(double* T) {
     memset(T, 0, sizeof(double) * 16);
     T[0] = T[5] = T[10] = T[15] = 1.0;
 }
 
+/**
+ * @brief 计算两个 4x4 矩阵的乘积
+ * @param A 输入矩阵 A
+ * @param B 输入矩阵 B
+ * @param R 输出矩阵 R = A * B
+ */
 static void mat4_mul(const double* A, const double* B, double* R) {
     for(int i = 0; i < 4; i++) {
         for(int j = 0; j < 4; j++) {
@@ -175,6 +220,14 @@ static void mat4_mul(const double* A, const double* B, double* R) {
     }
 }
 
+/**
+ * @brief 根据 MDH 参数生成变换矩阵
+ * @param T 输出的 4x4 变换矩阵
+ * @param alpha 关节 i-1 的扭转角
+ * @param a 关节 i-1 的连杆长度
+ * @param theta 关节 i 的关节角
+ * @param d 关节 i 的连杆偏移
+ */
 static void get_tf_matrix(double* T, double alpha, double a, double theta, double d) {
     T[0] = cos(theta); T[1] = -sin(theta); T[2] = 0; T[3] = a;
     T[4] = sin(theta) * cos(alpha); T[5] = cos(theta) * cos(alpha); T[6] = -sin(alpha); T[7] = -d * sin(alpha);
@@ -182,6 +235,11 @@ static void get_tf_matrix(double* T, double alpha, double a, double theta, doubl
     T[12] = 0; T[13] = 0; T[14] = 0; T[15] = 1;
 }
 
+/**
+ * @brief 计算机械臂的正运动学，得到末端的变换矩阵
+ * @param q 关节角度数组
+ * @param T_out 输出的末端变换矩阵
+ */
 static void fk_compute(const double* q, double* T_out) {
     double T[16];
     mat4_identity(T);
@@ -202,6 +260,11 @@ static void fk_compute(const double* q, double* T_out) {
     memcpy(T_out, T, sizeof(double) * 16);
 }
 
+/**
+ * @brief 将 4x4 变换矩阵转换为位姿结构体
+ * @param T 输入的 4x4 变换矩阵
+ * @param pose 输出的位姿结构体
+ */
 static void matrix_to_pose(const double* T, Pose_t* pose) {
     pose->position.x = T[3];
     pose->position.y = T[7];
@@ -216,11 +279,21 @@ static void matrix_to_pose(const double* T, Pose_t* pose) {
     pose->orientation.z = (T[4] - T[1]) / (4 * qw);
 }
 
+/**
+ * @brief 生成 6x6 单位矩阵
+ * @param A 输出的单位矩阵
+ */
 static void mat6_identity(double* A) {
     memset(A, 0, sizeof(double) * 36);
     for(int i = 0; i < 6; i++) A[i * 6 + i] = 1.0;
 }
 
+/**
+ * @brief 计算两个 6x6 矩阵的乘积
+ * @param A 输入矩阵 A
+ * @param B 输入矩阵 B
+ * @param R 输出矩阵 R = A * B
+ */
 static void mat6_mul(const double* A, const double* B, double* R) {
     for(int i = 0; i < 6; i++) {
         for(int j = 0; j < 6; j++) {
@@ -232,6 +305,12 @@ static void mat6_mul(const double* A, const double* B, double* R) {
     }
 }
 
+/**
+ * @brief 计算 6x6 矩阵与 6x1 向量的乘积
+ * @param A 输入矩阵 A
+ * @param x 输入向量 x
+ * @param y 输出向量 y = A * x
+ */
 static void mat6_vec_mul(const double* A, const double* x, double* y) {
     for(int i = 0; i < 6; i++) {
         y[i] = 0;
@@ -241,6 +320,12 @@ static void mat6_vec_mul(const double* A, const double* x, double* y) {
     }
 }
 
+/**
+ * @brief 计算 6x6 矩阵的逆矩阵，使用高斯消元法
+ * @param A 输入矩阵 A
+ * @param inv 输出矩阵 inv = A^-1
+ * @return int 0 成功，-1 矩阵不可逆
+ */
 static int mat6_inverse(double* A, double* inv) {
     mat6_identity(inv);
 
