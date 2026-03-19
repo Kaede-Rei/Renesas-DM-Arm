@@ -38,12 +38,12 @@ typedef enum {
  * @param qmax 关节最大角度
  */
 typedef struct {
-    double alpha[6];
-    double a[6];
-    double d[6];
-    double offset[6];
-    double qmin[6];
-    double qmax[6];
+    float alpha[6];
+    float a[6];
+    float d[6];
+    float offset[6];
+    float qmin[6];
+    float qmax[6];
 } ArmMDH_t;
 
 /**
@@ -53,9 +53,9 @@ typedef struct {
  * @param z z 坐标
  */
 typedef struct {
-    double x;
-    double y;
-    double z;
+    float x;
+    float y;
+    float z;
 } Point_t;
 
 /**
@@ -66,10 +66,10 @@ typedef struct {
  * @param z 虚部 z
  */
 typedef struct {
-    double x;
-    double y;
-    double z;
-    double w;
+    float x;
+    float y;
+    float z;
+    float w;
 } Quaternion_t;
 
 /**
@@ -104,12 +104,12 @@ typedef struct {
  * @param joint_6 关节 6 角度
  */
 typedef struct {
-    double joint_1;
-    double joint_2;
-    double joint_3;
-    double joint_4;
-    double joint_5;
-    double joint_6;
+    float joint_1;
+    float joint_2;
+    float joint_3;
+    float joint_4;
+    float joint_5;
+    float joint_6;
 } SixDofJoint_t;
 
 /**

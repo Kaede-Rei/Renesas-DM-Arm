@@ -3,6 +3,8 @@
 #include <math.h>
 #include <string.h>
 
+#include "tools/matrix.h"
+
 // ! ========================= 变 量 声 明 ========================= ! //
 
 /// @brief 机械臂的 MDH 参数
@@ -10,19 +12,12 @@ static ArmMDH_t arm_mdh = { 0 };
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-static void mat4_identity(double* T);
-static void mat4_mul(const double* A, const double* B, double* R);
-static void get_tf_matrix(double* T, double alpha, double a, double theta, double d);
-static void fk_compute(const double* q, double* T_out);
-static void matrix_to_pose(const double* T, Pose_t* pose);
+static void get_tf_matrix(Matrix* T, float alpha, float a, float theta, float d);
+static void fk_compute(const Matrix* const q, Matrix* const out);
+static void matrix_to_pose(const Matrix* const T, Pose_t* pose);
 
-static void joints_to_array(const SixDofJoint_t* j, double* q);
-static void array_to_joints(const double* q, SixDofJoint_t* j);
-
-static void mat6_mul(const double* A, const double* B, double* R);
-static void mat6_vec_mul(const double* A, const double* x, double* y);
-static void mat6_identity(double* A);
-static int  mat6_inverse(double* A, double* inv);
+static void joints_to_array(const SixDofJoint_t* j, Matrix* q);
+static void array_to_joints(const Matrix* q, SixDofJoint_t* j);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
@@ -46,12 +41,12 @@ ArmErrorCode_t s_six_dof_init(const ArmMDH_t* mdh) {
 ArmErrorCode_t s_six_dof_fk(const SixDofJoint_t* joints, Pose_t* pose) {
     if(joints == NULL || pose == NULL) return ARM_ERROR;
 
-    double q[6];
-    double T[16];
+    matrix_create(q, 6, 1);
+    matrix_create(T, 4, 4);
 
-    joints_to_array(joints, q);
-    fk_compute(q, T);
-    matrix_to_pose(T, pose);
+    joints_to_array(joints, &q);
+    fk_compute(&q, &T);
+    matrix_to_pose(&T, pose);
 
     return ARM_SUCCESS;
 }
@@ -64,80 +59,89 @@ ArmErrorCode_t s_six_dof_fk(const SixDofJoint_t* joints, Pose_t* pose) {
  * @return ArmErrorCode_t 错误码
  */
 ArmErrorCode_t s_six_dof_ik(const Pose_t* pose, SixDofJoint_t* joints, const SixDofJoint_t* current_joints) {
-    if(!pose || !joints || !current_joints) return ARM_ERROR;
+    if(!pose || !joints || !current_joints)
+        return ARM_ERROR;
 
-    double q[6];
-    joints_to_array(current_joints, q);
+    matrix_create(q, 6, 1);
+    joints_to_array(current_joints, &q);
 
-    for(int iter = 0; iter < 200; iter++) {
+    matrix_create(T, 4, 4);
+    matrix_create(err, 6, 1);
+    matrix_create(J, 6, 6);
+    matrix_create(JT, 6, 6);
+    matrix_create(JJT, 6, 6);
+    matrix_create(inv, 6, 6);
+    matrix_create(tmp, 6, 6);
+    matrix_create(dq, 6, 1);
 
-        double T[16];
-        fk_compute(q, T);
+    float eps = 1e-5f;
+    float lambda = 0.01f;
+    float x, y, z;
+    float x2, y2, z2;
+    float alpha = 0.5f;
 
-        double err[6] = { 0 };
+    matrix_create(q_tmp, 6, 1);
+    matrix_create(T2, 4, 4);
+    matrix_identity_create(L, 6);
+    matrix_scalar_mul(&L, lambda, &L);
 
-        err[0] = pose->position.x - T[3];
-        err[1] = pose->position.y - T[7];
-        err[2] = pose->position.z - T[11];
+    for(unsigned int iter = 0; iter < 200; iter++) {
 
-        double norm = sqrt(err[0] * err[0] + err[1] * err[1] + err[2] * err[2]);
+        fk_compute(&q, &T);
 
-        if(norm < 1e-4) {
-            array_to_joints(q, joints);
+        matrix_get(&T, 0, 3, &x);
+        matrix_get(&T, 1, 3, &y);
+        matrix_get(&T, 2, 3, &z);
+
+        matrix_set(&err, 0, 0, pose->position.x - x);
+        matrix_set(&err, 1, 0, pose->position.y - y);
+        matrix_set(&err, 2, 0, pose->position.z - z);
+        matrix_set(&err, 3, 0, 0.0f);
+        matrix_set(&err, 4, 0, 0.0f);
+        matrix_set(&err, 5, 0, 0.0f);
+
+        float norm = sqrtf(err.pdata[0] * err.pdata[0] +
+            err.pdata[1] * err.pdata[1] +
+            err.pdata[2] * err.pdata[2]);
+        alpha = fminf(0.5f, norm);
+
+        if(norm < 1e-4f) {
+            array_to_joints(&q, joints);
             return ARM_SUCCESS;
         }
 
-        // 数值雅可比
-        double J[36];
-        double eps = 1e-6;
+        for(unsigned int i = 0; i < 6; i++) {
+            matrix_copy(&q, &q_tmp);
+            q_tmp.pdata[i] += eps;
 
-        for(int i = 0; i < 6; i++) {
+            fk_compute(&q_tmp, &T2);
 
-            double q_tmp[6];
-            memcpy(q_tmp, q, sizeof(q));
+            matrix_get(&T2, 0, 3, &x2);
+            matrix_get(&T2, 1, 3, &y2);
+            matrix_get(&T2, 2, 3, &z2);
 
-            q_tmp[i] += eps;
+            matrix_set(&J, 0, i, (x2 - x) / eps);
+            matrix_set(&J, 1, i, (y2 - y) / eps);
+            matrix_set(&J, 2, i, (z2 - z) / eps);
 
-            double T2[16];
-            fk_compute(q_tmp, T2);
-
-            J[0 * 6 + i] = (T2[3] - T[3]) / eps;
-            J[1 * 6 + i] = (T2[7] - T[7]) / eps;
-            J[2 * 6 + i] = (T2[11] - T[11]) / eps;
-
-            J[3 * 6 + i] = 0;
-            J[4 * 6 + i] = 0;
-            J[5 * 6 + i] = 0;
+            matrix_set(&J, 3, i, 0.0f);
+            matrix_set(&J, 4, i, 0.0f);
+            matrix_set(&J, 5, i, 0.0f);
         }
 
-        double JT[36];
-        for(int i = 0; i < 6; i++)
-            for(int j = 0; j < 6; j++)
-                JT[i * 6 + j] = J[j * 6 + i];
+        matrix_transpose(&J, &JT);
+        matrix_mul(&JT, &J, &JJT);
+        matrix_add(&JJT, &L, &JJT);
 
-        double JJT[36];
-        mat6_mul(JT, J, JJT);
+        if(matrix_inverse(&JJT, &inv) != MATRIX_SUCCESS) return ARM_ERROR_SINGULARITY;
+        matrix_mul(&inv, &JT, &tmp);
+        matrix_mul(&tmp, &err, &dq);
 
-        // 阻尼
-        for(int i = 0; i < 6; i++)
-            JJT[i * 6 + i] += 0.01;
+        for(unsigned int i = 0; i < 6; i++) {
+            q.pdata[i] += alpha * dq.pdata[i];
 
-        double inv[36];
-        if(mat6_inverse(JJT, inv) != 0)
-            return ARM_ERROR_SINGULARITY;
-
-        double tmp[36];
-        mat6_mul(inv, JT, tmp);
-
-        double dq[6];
-        mat6_vec_mul(tmp, err, dq);
-
-        for(int i = 0; i < 6; i++) {
-            q[i] += dq[i];
-
-            // 限位
-            if(q[i] < arm_mdh.qmin[i]) q[i] = arm_mdh.qmin[i];
-            if(q[i] > arm_mdh.qmax[i]) q[i] = arm_mdh.qmax[i];
+            if(q.pdata[i] < arm_mdh.qmin[i]) q.pdata[i] = arm_mdh.qmin[i];
+            if(q.pdata[i] > arm_mdh.qmax[i]) q.pdata[i] = arm_mdh.qmax[i];
         }
     }
 
@@ -171,13 +175,13 @@ ArmErrorCode_t s_six_dof_all_ik(const Pose_t* pose, SixDofJointAll_t* joints) {
  * @param j 关节结构体
  * @param q 输出的关节角度数组
  */
-static void joints_to_array(const SixDofJoint_t* j, double* q) {
-    q[0] = j->joint_1;
-    q[1] = j->joint_2;
-    q[2] = j->joint_3;
-    q[3] = j->joint_4;
-    q[4] = j->joint_5;
-    q[5] = j->joint_6;
+static void joints_to_array(const SixDofJoint_t* j, Matrix* q) {
+    matrix_set(q, 0, 0, j->joint_1);
+    matrix_set(q, 1, 0, j->joint_2);
+    matrix_set(q, 2, 0, j->joint_3);
+    matrix_set(q, 3, 0, j->joint_4);
+    matrix_set(q, 4, 0, j->joint_5);
+    matrix_set(q, 5, 0, j->joint_6);
 }
 
 /**
@@ -185,40 +189,15 @@ static void joints_to_array(const SixDofJoint_t* j, double* q) {
  * @param q 关节角度数组
  * @param j 输出的关节结构体
  */
-static void array_to_joints(const double* q, SixDofJoint_t* j) {
-    j->joint_1 = q[0];
-    j->joint_2 = q[1];
-    j->joint_3 = q[2];
-    j->joint_4 = q[3];
-    j->joint_5 = q[4];
-    j->joint_6 = q[5];
+static void array_to_joints(const Matrix* q, SixDofJoint_t* j) {
+    matrix_get(q, 0, 0, &j->joint_1);
+    matrix_get(q, 1, 0, &j->joint_2);
+    matrix_get(q, 2, 0, &j->joint_3);
+    matrix_get(q, 3, 0, &j->joint_4);
+    matrix_get(q, 4, 0, &j->joint_5);
+    matrix_get(q, 5, 0, &j->joint_6);
 }
 
-/**
- * @brief 生成 4x4 单位矩阵
- * @param T 输出的单位矩阵
- */
-static void mat4_identity(double* T) {
-    memset(T, 0, sizeof(double) * 16);
-    T[0] = T[5] = T[10] = T[15] = 1.0;
-}
-
-/**
- * @brief 计算两个 4x4 矩阵的乘积
- * @param A 输入矩阵 A
- * @param B 输入矩阵 B
- * @param R 输出矩阵 R = A * B
- */
-static void mat4_mul(const double* A, const double* B, double* R) {
-    for(int i = 0; i < 4; i++) {
-        for(int j = 0; j < 4; j++) {
-            R[i * 4 + j] = 0;
-            for(int k = 0; k < 4; k++) {
-                R[i * 4 + j] += A[i * 4 + k] * B[k * 4 + j];
-            }
-        }
-    }
-}
 
 /**
  * @brief 根据 MDH 参数生成变换矩阵
@@ -228,11 +207,26 @@ static void mat4_mul(const double* A, const double* B, double* R) {
  * @param theta 关节 i 的关节角
  * @param d 关节 i 的连杆偏移
  */
-static void get_tf_matrix(double* T, double alpha, double a, double theta, double d) {
-    T[0] = cos(theta); T[1] = -sin(theta); T[2] = 0; T[3] = a;
-    T[4] = sin(theta) * cos(alpha); T[5] = cos(theta) * cos(alpha); T[6] = -sin(alpha); T[7] = -d * sin(alpha);
-    T[8] = sin(theta) * sin(alpha); T[9] = cos(theta) * sin(alpha); T[10] = cos(alpha); T[11] = d * cos(alpha);
-    T[12] = 0; T[13] = 0; T[14] = 0; T[15] = 1;
+static void get_tf_matrix(Matrix* T, float alpha, float a, float theta, float d) {
+    matrix_set(T, 0, 0, cosf(theta));
+    matrix_set(T, 0, 1, -sinf(theta));
+    matrix_set(T, 0, 2, 0);
+    matrix_set(T, 0, 3, a);
+
+    matrix_set(T, 1, 0, sinf(theta) * cosf(alpha));
+    matrix_set(T, 1, 1, cosf(theta) * cosf(alpha));
+    matrix_set(T, 1, 2, -sinf(alpha));
+    matrix_set(T, 1, 3, -d * sinf(alpha));
+
+    matrix_set(T, 2, 0, sinf(theta) * sinf(alpha));
+    matrix_set(T, 2, 1, cosf(theta) * sinf(alpha));
+    matrix_set(T, 2, 2, cosf(alpha));
+    matrix_set(T, 2, 3, d * cosf(alpha));
+
+    matrix_set(T, 3, 0, 0);
+    matrix_set(T, 3, 1, 0);
+    matrix_set(T, 3, 2, 0);
+    matrix_set(T, 3, 3, 1);
 }
 
 /**
@@ -240,24 +234,22 @@ static void get_tf_matrix(double* T, double alpha, double a, double theta, doubl
  * @param q 关节角度数组
  * @param T_out 输出的末端变换矩阵
  */
-static void fk_compute(const double* q, double* T_out) {
-    double T[16];
-    mat4_identity(T);
+static void fk_compute(const Matrix* const q, Matrix* const out) {
+    matrix_identity_create(T, 4);
+    matrix_identity_create(Ti, 4);
+    matrix_identity_create(temp, 4);
 
     for(int i = 0; i < 6; i++) {
-        double Ti[16];
-        get_tf_matrix(Ti,
+        get_tf_matrix(&Ti,
             arm_mdh.alpha[i],
             arm_mdh.a[i],
-            q[i] + arm_mdh.offset[i],
+            q->pdata[i] + arm_mdh.offset[i],
             arm_mdh.d[i]);
 
-        double tmp[16];
-        mat4_mul(T, Ti, tmp);
-        memcpy(T, tmp, sizeof(tmp));
+        matrix_mul(&T, &Ti, &temp);
+        matrix_copy(&temp, &T);
     }
-
-    memcpy(T_out, T, sizeof(double) * 16);
+    matrix_copy(&T, out);
 }
 
 /**
@@ -265,91 +257,30 @@ static void fk_compute(const double* q, double* T_out) {
  * @param T 输入的 4x4 变换矩阵
  * @param pose 输出的位姿结构体
  */
-static void matrix_to_pose(const double* T, Pose_t* pose) {
-    pose->position.x = T[3];
-    pose->position.y = T[7];
-    pose->position.z = T[11];
+static void matrix_to_pose(const Matrix* const T, Pose_t* pose) {
+    matrix_get(T, 0, 3, &pose->position.x);
+    matrix_get(T, 1, 3, &pose->position.y);
+    matrix_get(T, 2, 3, &pose->position.z);
 
-    double r11 = T[0], r22 = T[5], r33 = T[10];
-    double qw = sqrt(1 + r11 + r22 + r33) / 2.0;
+    float r11 = 0, r12 = 0, r13 = 0;
+    float r21 = 0, r22 = 0, r23 = 0;
+    float r31 = 0, r32 = 0, r33 = 0;
+    matrix_get(T, 0, 0, &r11);
+    matrix_get(T, 0, 1, &r12);
+    matrix_get(T, 0, 2, &r13);
+
+    matrix_get(T, 1, 0, &r21);
+    matrix_get(T, 1, 1, &r22);
+    matrix_get(T, 1, 2, &r23);
+
+    matrix_get(T, 2, 0, &r31);
+    matrix_get(T, 2, 1, &r32);
+    matrix_get(T, 2, 2, &r33);
+
+    float qw = sqrtf(1.0f + r11 + r22 + r33) / 2.0f;
 
     pose->orientation.w = qw;
-    pose->orientation.x = (T[9] - T[6]) / (4 * qw);
-    pose->orientation.y = (T[2] - T[8]) / (4 * qw);
-    pose->orientation.z = (T[4] - T[1]) / (4 * qw);
-}
-
-/**
- * @brief 生成 6x6 单位矩阵
- * @param A 输出的单位矩阵
- */
-static void mat6_identity(double* A) {
-    memset(A, 0, sizeof(double) * 36);
-    for(int i = 0; i < 6; i++) A[i * 6 + i] = 1.0;
-}
-
-/**
- * @brief 计算两个 6x6 矩阵的乘积
- * @param A 输入矩阵 A
- * @param B 输入矩阵 B
- * @param R 输出矩阵 R = A * B
- */
-static void mat6_mul(const double* A, const double* B, double* R) {
-    for(int i = 0; i < 6; i++) {
-        for(int j = 0; j < 6; j++) {
-            R[i * 6 + j] = 0;
-            for(int k = 0; k < 6; k++) {
-                R[i * 6 + j] += A[i * 6 + k] * B[k * 6 + j];
-            }
-        }
-    }
-}
-
-/**
- * @brief 计算 6x6 矩阵与 6x1 向量的乘积
- * @param A 输入矩阵 A
- * @param x 输入向量 x
- * @param y 输出向量 y = A * x
- */
-static void mat6_vec_mul(const double* A, const double* x, double* y) {
-    for(int i = 0; i < 6; i++) {
-        y[i] = 0;
-        for(int j = 0; j < 6; j++) {
-            y[i] += A[i * 6 + j] * x[j];
-        }
-    }
-}
-
-/**
- * @brief 计算 6x6 矩阵的逆矩阵，使用高斯消元法
- * @param A 输入矩阵 A
- * @param inv 输出矩阵 inv = A^-1
- * @return int 0 成功，-1 矩阵不可逆
- */
-static int mat6_inverse(double* A, double* inv) {
-    mat6_identity(inv);
-
-    for(int i = 0; i < 6; i++) {
-        double pivot = A[i * 6 + i];
-        if(fabs(pivot) < 1e-9) return -1;
-
-        double inv_p = 1.0 / pivot;
-
-        for(int j = 0; j < 6; j++) {
-            A[i * 6 + j] *= inv_p;
-            inv[i * 6 + j] *= inv_p;
-        }
-
-        for(int k = 0; k < 6; k++) {
-            if(k == i) continue;
-
-            double f = A[k * 6 + i];
-
-            for(int j = 0; j < 6; j++) {
-                A[k * 6 + j] -= f * A[i * 6 + j];
-                inv[k * 6 + j] -= f * inv[i * 6 + j];
-            }
-        }
-    }
-    return 0;
+    pose->orientation.x = (r23 - r32) / (4 * qw);
+    pose->orientation.y = (r31 - r13) / (4 * qw);
+    pose->orientation.z = (r12 - r21) / (4 * qw);
 }

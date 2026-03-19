@@ -1,6 +1,8 @@
 #include "matrix.h"
 
+#include <assert.h>
 #include <math.h>
+#include <sys/_types.h>
 #include <sys/reent.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
@@ -14,7 +16,7 @@
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
 
-MatrixErrorCode_e matrix(Matrix_t* const m, unsigned int row, unsigned int col, double* data) {
+MatrixErrorCode matrix(Matrix* const m, unsigned int row, unsigned int col, float* data) {
     if(m == NULL || data == NULL || row == 0 || col == 0) return MATRIX_CREATE_FAILED;
 
     m->pdata = data;
@@ -24,7 +26,7 @@ MatrixErrorCode_e matrix(Matrix_t* const m, unsigned int row, unsigned int col, 
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_identity(Matrix_t* const m, unsigned int size, double* data) {
+MatrixErrorCode matrix_identity(Matrix* const m, unsigned int size, float* data) {
     if(m == NULL || data == NULL || size == 0) return MATRIX_CREATE_FAILED;
 
     m->pdata = data;
@@ -40,7 +42,7 @@ MatrixErrorCode_e matrix_identity(Matrix_t* const m, unsigned int size, double* 
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_get(const Matrix_t* const m, unsigned int r, unsigned int c, double* value) {
+MatrixErrorCode matrix_get(const Matrix* const m, unsigned int r, unsigned int c, float* value) {
     if(m == NULL || m->pdata == NULL || r >= m->row || c >= m->col) return MATRIX_INVALID;
     if(value == NULL) return MATRIX_ERROR;
 
@@ -49,7 +51,7 @@ MatrixErrorCode_e matrix_get(const Matrix_t* const m, unsigned int r, unsigned i
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_set(Matrix_t* const m, unsigned int r, unsigned int c, double value) {
+MatrixErrorCode matrix_set(Matrix* const m, unsigned int r, unsigned int c, float value) {
     if(m == NULL || m->pdata == NULL || r >= m->row || c >= m->col) return MATRIX_INVALID;
 
     m->pdata[r * m->col + c] = value;
@@ -57,7 +59,7 @@ MatrixErrorCode_e matrix_set(Matrix_t* const m, unsigned int r, unsigned int c, 
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_copy(const Matrix_t* const m, Matrix_t* const out) {
+MatrixErrorCode matrix_copy(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
 
@@ -70,7 +72,7 @@ MatrixErrorCode_e matrix_copy(const Matrix_t* const m, Matrix_t* const out) {
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_add(const Matrix_t* const A, const Matrix_t* const B, Matrix_t* const out) {
+MatrixErrorCode matrix_add(const Matrix* const A, const Matrix* const B, Matrix* const out) {
     if(A == NULL || A->pdata == NULL || B == NULL || B->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(A->row != B->row || A->col != B->col || A->row != out->row || A->col != out->col) return MATRIX_CANNOT_COMPUTE;
 
@@ -83,7 +85,7 @@ MatrixErrorCode_e matrix_add(const Matrix_t* const A, const Matrix_t* const B, M
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_sub(const Matrix_t* const A, const Matrix_t* const B, Matrix_t* const out) {
+MatrixErrorCode matrix_sub(const Matrix* const A, const Matrix* const B, Matrix* const out) {
     if(A == NULL || A->pdata == NULL || B == NULL || B->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(A->row != B->row || A->col != B->col || A->row != out->row || A->col != out->col) return MATRIX_CANNOT_COMPUTE;
 
@@ -96,7 +98,7 @@ MatrixErrorCode_e matrix_sub(const Matrix_t* const A, const Matrix_t* const B, M
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_scalar_mul(const Matrix_t* const m, double scalar, Matrix_t* const out) {
+MatrixErrorCode matrix_scalar_mul(const Matrix* const m, float scalar, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
 
@@ -109,13 +111,14 @@ MatrixErrorCode_e matrix_scalar_mul(const Matrix_t* const m, double scalar, Matr
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_mul(const Matrix_t* const A, const Matrix_t* const B, Matrix_t* const out) {
+MatrixErrorCode matrix_mul(const Matrix* const A, const Matrix* const B, Matrix* const out) {
     if(A == NULL || A->pdata == NULL || B == NULL || B->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(A->col != B->row || A->row != out->row || B->col != out->col) return MATRIX_CANNOT_COMPUTE;
+    if(A == out || B == out) return MATRIX_ERROR;
 
     for(unsigned int i = 0; i < A->row; ++i) {
         for(unsigned int j = 0; j < B->col; ++j) {
-            double sum = 0.0;
+            float sum = 0.0;
             for(unsigned int k = 0; k < A->col; ++k) {
                 sum += A->pdata[i * A->col + k] * B->pdata[k * B->col + j];
             }
@@ -126,9 +129,10 @@ MatrixErrorCode_e matrix_mul(const Matrix_t* const A, const Matrix_t* const B, M
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_transpose(const Matrix_t* const m, Matrix_t* const out) {
+MatrixErrorCode matrix_transpose(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != out->col || m->col != out->row) return MATRIX_CANNOT_COMPUTE;
+    if(m == out) return MATRIX_INPLACE;
 
     for(unsigned int i = 0; i < m->row; ++i) {
         for(unsigned int j = 0; j < m->col; ++j) {
@@ -139,96 +143,220 @@ MatrixErrorCode_e matrix_transpose(const Matrix_t* const m, Matrix_t* const out)
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_to_upper_triangular(const Matrix_t* const m, Matrix_t* const out) {
+MatrixErrorCode matrix_to_upper_triangular(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != m->col || m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
+    if(m == out) return MATRIX_INPLACE;
 
+    unsigned int n = m->row;
     matrix_copy(m, out);
 
-    // TODO: 部分主元选择未实现
+    for(unsigned int i = 0; i < n; ++i) {
+        unsigned int max_row = i;
+        float max_val = fabsf(out->pdata[i * n + i]);
 
-    for(unsigned int i = 0; i < out->row; ++i) {
-        double pivot = out->pdata[i * out->col + i];
-        if(fabs(pivot) <= 1e-10) return MATRIX_PIVOT_IS_ZERO;
-
-        for(unsigned int j = i + 1; j < out->row; ++j) {
-            double factor = out->pdata[j * out->col + i] / pivot;
-
-            for(unsigned int k = i; k < out->col; ++k) {
-                out->pdata[j * out->col + k] -= factor * out->pdata[i * out->col + k];
+        for(unsigned int k = i + 1; k < n; ++k) {
+            float val = fabsf(out->pdata[k * n + i]);
+            if(val > max_val) {
+                max_val = val;
+                max_row = k;
             }
-            out->pdata[j * out->col + i] = 0.0;
+        }
+
+        if(max_val < 1e-8f) return MATRIX_PIVOT_IS_ZERO;
+        if(max_row != i) {
+            for(unsigned int j = 0; j < n; ++j) {
+                float tmp = out->pdata[i * n + j];
+                out->pdata[i * n + j] = out->pdata[max_row * n + j];
+                out->pdata[max_row * n + j] = tmp;
+            }
+        }
+
+        float pivot = out->pdata[i * n + i];
+        for(unsigned int j = i + 1; j < n; ++j) {
+            float factor = out->pdata[j * n + i] / pivot;
+
+            for(unsigned int k = i; k < n; ++k) {
+                out->pdata[j * n + k] -= factor * out->pdata[i * n + k];
+            }
+
+            out->pdata[j * n + i] = 0.0f;
         }
     }
 
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_to_lower_triangular(const Matrix_t* const m, Matrix_t* const out) {
+MatrixErrorCode matrix_to_lower_triangular(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != m->col || m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
+    if(m == out) return MATRIX_INPLACE;
 
+    unsigned int n = m->row;
     matrix_copy(m, out);
 
-    // TODO: 部分主元选择未实现
+    for(int i = (int)n - 1; i >= 0; --i) {
+        unsigned int max_row = (unsigned int)i;
+        float max_val = fabsf(out->pdata[(unsigned int)i * n + (unsigned int)i]);
 
-    for(unsigned int i = 0; i < out->row; ++i) {
-        double pivot = out->pdata[i * out->col + i];
-        if(fabs(pivot) <= 1e-10) return MATRIX_PIVOT_IS_ZERO;
-
-        for(unsigned int j = 0; j < i; ++j) {
-            double factor = out->pdata[j * out->col + i] / pivot;
-
-            for(unsigned int k = 0; k <= i; ++k) {
-                out->pdata[j * out->col + k] -= factor * out->pdata[i * out->col + k];
+        for(int k = i - 1; k >= 0; --k) {
+            float val = fabsf(out->pdata[(unsigned int)k * n + (unsigned int)i]);
+            if(val > max_val) {
+                max_val = val;
+                max_row = (unsigned int)k;
             }
-            out->pdata[j * out->col + i] = 0.0;
+        }
+
+        if(max_val < 1e-8f) return MATRIX_PIVOT_IS_ZERO;
+        if(max_row != (unsigned int)i) {
+            for(unsigned int j = 0; j < n; ++j) {
+                float tmp = out->pdata[(unsigned int)i * n + j];
+                out->pdata[(unsigned int)i * n + j] = out->pdata[max_row * n + j];
+                out->pdata[max_row * n + j] = tmp;
+            }
+        }
+
+        float pivot = out->pdata[(unsigned int)i * n + (unsigned int)i];
+        for(int j = i - 1; j >= 0; --j) {
+            float factor = out->pdata[(unsigned int)j * n + (unsigned int)i] / pivot;
+
+            for(int k = i; k >= 0; --k) {
+                out->pdata[(unsigned int)j * n + (unsigned int)k] -= factor * out->pdata[(unsigned int)i * n + (unsigned int)k];
+            }
+
+            out->pdata[(unsigned int)j * n + (unsigned int)i] = 0.0f;
         }
     }
 
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_determinant(const Matrix_t* const m, double* out) {
-    if(m == NULL || m->pdata == NULL || out == NULL) return MATRIX_INVALID;
-    if(m->row != m->col) return MATRIX_CANNOT_COMPUTE;
+MatrixErrorCode matrix_determinant(const Matrix* const m, float* out) {
+    if(m == NULL || m->pdata == NULL || out == NULL)
+        return MATRIX_INVALID;
 
-    Matrix_t temp;
-    temp.col = m->col;
-    temp.row = m->row;
-    double temp_data[m->row * m->col];
-    temp.pdata = temp_data;
+    if(m->row != m->col)
+        return MATRIX_CANNOT_COMPUTE;
 
-    MatrixErrorCode_e error = matrix_to_upper_triangular(m, &temp);
-    if(error != MATRIX_SUCCESS) {
-        return error;
+    unsigned int n = m->row;
+
+    float temp_data[n * n];
+    Matrix temp;
+    matrix(&temp, n, n, temp_data);
+    matrix_copy(m, &temp);
+    int swap_count = 0;
+
+    for(unsigned int i = 0; i < n; ++i) {
+        unsigned int max_row = i;
+        float max_val = fabsf(temp.pdata[i * n + i]);
+
+        for(unsigned int k = i + 1; k < n; ++k) {
+            float val = fabsf(temp.pdata[k * n + i]);
+            if(val > max_val) {
+                max_val = val;
+                max_row = k;
+            }
+        }
+
+        if(max_val < 1e-8f) {
+            *out = 0.0f;
+            return MATRIX_SUCCESS;
+        }
+
+        if(max_row != i) {
+            for(unsigned int j = 0; j < n; ++j) {
+                float tmp = temp.pdata[i * n + j];
+                temp.pdata[i * n + j] = temp.pdata[max_row * n + j];
+                temp.pdata[max_row * n + j] = tmp;
+            }
+            swap_count++;
+        }
+
+        float pivot = temp.pdata[i * n + i];
+        for(unsigned int j = i + 1; j < n; ++j) {
+            float factor = temp.pdata[j * n + i] / pivot;
+
+            for(unsigned int k = i; k < n; ++k) {
+                temp.pdata[j * n + k] -= factor * temp.pdata[i * n + k];
+            }
+        }
     }
 
-    *out = 1.0;
-    for(unsigned int i = 0; i < temp.row; ++i) {
-        *out *= temp.pdata[i * temp.col + i];
+    float det = 1.0f;
+    for(unsigned int i = 0; i < n; ++i) {
+        det *= temp.pdata[i * n + i];
     }
+
+    if(swap_count % 2 != 0) {
+        det = -det;
+    }
+    *out = det;
 
     return MATRIX_SUCCESS;
 }
 
-MatrixErrorCode_e matrix_inverse(const Matrix_t* const m, Matrix_t* const out) {
+MatrixErrorCode matrix_inverse(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != m->col || m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
+    if(m == out) return MATRIX_INPLACE;
 
-    double det;
-    if(matrix_determinant(m, &det) != MATRIX_SUCCESS || det == 0.0) return MATRIX_CANNOT_COMPUTE;
+    unsigned int n = m->row;
+    matrix_create(aug, n, 2 * n);
 
-    Matrix_t identity;
-    identity.row = m->row;
-    identity.col = m->col;
-    double identity_data[m->row * m->col];
-    identity.pdata = identity_data;
-    matrix_identity(&identity, m->row, identity_data);
+    for(unsigned int i = 0; i < n; i++) {
+        for(unsigned int j = 0; j < n; j++) {
+            aug.pdata[i * aug.col + j] = m->pdata[i * m->col + j];
+            aug.pdata[i * aug.col + (j + n)] = (i == j) ? 1.0f : 0.0f;
+        }
+    }
 
-    // TODO: 高斯-若尔当消元法未实现
+    for(unsigned int i = 0; i < n; i++) {
 
-    return MATRIX_ERROR;
+        unsigned int max_row = i;
+        float max_val = fabsf(aug.pdata[i * aug.col + i]);
+
+        for(unsigned int k = i + 1; k < n; k++) {
+            float val = fabsf(aug.pdata[k * aug.col + i]);
+            if(val > max_val) {
+                max_val = val;
+                max_row = k;
+            }
+        }
+
+        if(max_val < 1e-8f)
+            return MATRIX_PIVOT_IS_ZERO;
+
+        if(max_row != i) {
+            for(unsigned int j = 0; j < 2 * n; j++) {
+                float tmp = aug.pdata[i * aug.col + j];
+                aug.pdata[i * aug.col + j] = aug.pdata[max_row * aug.col + j];
+                aug.pdata[max_row * aug.col + j] = tmp;
+            }
+        }
+
+        float pivot = aug.pdata[i * aug.col + i];
+        for(unsigned int j = 0; j < 2 * n; j++) {
+            aug.pdata[i * aug.col + j] /= pivot;
+        }
+
+        for(unsigned int k = 0; k < n; k++) {
+            if(k == i) continue;
+
+            float factor = aug.pdata[k * aug.col + i];
+
+            for(unsigned int j = 0; j < 2 * n; j++) {
+                aug.pdata[k * aug.col + j] -= factor * aug.pdata[i * aug.col + j];
+            }
+        }
+    }
+
+    for(unsigned int i = 0; i < n; i++) {
+        for(unsigned int j = 0; j < n; j++) {
+            out->pdata[i * out->col + j] = aug.pdata[i * aug.col + (j + n)];
+        }
+    }
+
+    return MATRIX_SUCCESS;
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //

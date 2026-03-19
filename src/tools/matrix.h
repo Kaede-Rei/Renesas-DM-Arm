@@ -7,35 +7,45 @@
 
 typedef enum {
     MATRIX_SUCCESS = 0,
-    MATRIX_ERROR = 1,
-    MATRIX_CREATE_FAILED = 2,
-    MATRIX_INVALID = 3,
-    MATRIX_CANNOT_COMPUTE = 4,
-    MATRIX_PIVOT_IS_ZERO = 5
-} MatrixErrorCode_e;
+    MATRIX_ERROR,
+    MATRIX_CREATE_FAILED,
+    MATRIX_INVALID,
+    MATRIX_CANNOT_COMPUTE,
+    MATRIX_PIVOT_IS_ZERO,
+    MATRIX_INPLACE,
+} MatrixErrorCode;
 
 typedef struct {
-    double* pdata;
+    float* pdata;
     unsigned int row;
     unsigned int col;
-} Matrix_t;
+} Matrix;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-MatrixErrorCode_e matrix(Matrix_t* const m, unsigned int row, unsigned int col, double* data);
-MatrixErrorCode_e matrix_identity(Matrix_t* const m, unsigned int size, double* data);
-MatrixErrorCode_e matrix_get(const Matrix_t* const m, unsigned int r, unsigned int c, double* value);
-MatrixErrorCode_e matrix_set(Matrix_t* const m, unsigned int r, unsigned int c, double value);
-MatrixErrorCode_e matrix_copy(const Matrix_t* const m, Matrix_t* const out);
+#define matrix_create(name, row, col) \
+    float name##_data[row * col]; \
+    Matrix name; \
+    matrix(&name, row, col, name##_data)
+#define matrix_identity_create(name, size) \
+    float name##_data[size * size]; \
+    Matrix name; \
+    matrix_identity(&name, size, name##_data)
 
-MatrixErrorCode_e matrix_add(const Matrix_t* const A, const Matrix_t* const B, Matrix_t* const out);
-MatrixErrorCode_e matrix_sub(const Matrix_t* const A, const Matrix_t* const B, Matrix_t* const out);
-MatrixErrorCode_e matrix_scalar_mul(const Matrix_t* const m, double scalar, Matrix_t* const out);
-MatrixErrorCode_e matrix_mul(const Matrix_t* const A, const Matrix_t* const B, Matrix_t* const out);
-MatrixErrorCode_e matrix_transpose(const Matrix_t* const m, Matrix_t* const out);
-MatrixErrorCode_e matrix_to_upper_triangular(const Matrix_t* const m, Matrix_t* const out);
-MatrixErrorCode_e matrix_to_lower_triangular(const Matrix_t* const m, Matrix_t* const out);
-MatrixErrorCode_e matrix_determinant(const Matrix_t* const m, double* out);
-MatrixErrorCode_e matrix_inverse(const Matrix_t* const m, Matrix_t* const out);
+MatrixErrorCode matrix(Matrix* const m, unsigned int row, unsigned int col, float* data);
+MatrixErrorCode matrix_identity(Matrix* const m, unsigned int size, float* data);
+MatrixErrorCode matrix_get(const Matrix* const m, unsigned int r, unsigned int c, float* value);
+MatrixErrorCode matrix_set(Matrix* const m, unsigned int r, unsigned int c, float value);
+MatrixErrorCode matrix_copy(const Matrix* const m, Matrix* const out);
+
+MatrixErrorCode matrix_add(const Matrix* const A, const Matrix* const B, Matrix* const out);
+MatrixErrorCode matrix_sub(const Matrix* const A, const Matrix* const B, Matrix* const out);
+MatrixErrorCode matrix_scalar_mul(const Matrix* const m, float scalar, Matrix* const out);
+MatrixErrorCode matrix_mul(const Matrix* const A, const Matrix* const B, Matrix* const out);
+MatrixErrorCode matrix_transpose(const Matrix* const m, Matrix* const out);
+MatrixErrorCode matrix_to_upper_triangular(const Matrix* const m, Matrix* const out);
+MatrixErrorCode matrix_to_lower_triangular(const Matrix* const m, Matrix* const out);
+MatrixErrorCode matrix_determinant(const Matrix* const m, float* out);
+MatrixErrorCode matrix_inverse(const Matrix* const m, Matrix* const out);
 
 #endif

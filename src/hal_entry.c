@@ -56,36 +56,36 @@ void sys_init(RingBuf_t* uart_rx_buf) {
 
     // 测试 FK - IK
     s_delay_ms(1000);
-    double dx = 0.244004;
-    double dy = 0.059971;
-    double phi = atan2(dy, dx);
-    double a3 = sqrt(pow(dx, 2) + pow(dy, 2));
+    float dx = 0.244004f;
+    float dy = 0.059971f;
+    float phi = atan2f(dy, dx);
+    float a3 = sqrtf(powf(dx, 2) + powf(dy, 2));
     ArmMDH_t mdh = {
         .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
-        .a = { 0, 0.02, 0.264, a3, 0.061868, 0 },
-        .d = { 0.1, 0, 0, 0, 0, 0.19 },
+        .a = { 0, 0.02f, 0.264f, a3, 0.061868f, 0 },
+        .d = { 0.1f, 0, 0, 0, 0, 0.19f },
         .offset = { M_PI / 2, M_PI, phi - M_PI, -phi, M_PI / 2, 0 },
-        .qmin = { -2.0944, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
-        .qmax = { 2.0944, M_PI, 1.5 * M_PI, M_PI / 2, M_PI / 2, M_PI }
+        .qmin = { -2.0944f, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
+        .qmax = { 2.0944f, M_PI, 1.5f * M_PI, M_PI / 2, M_PI / 2, M_PI }
     };
     s_six_dof_init(&mdh);
 
-    SixDofJoint_t joints = { 0.2, 1.2, 1.5, 0.5, -0.4, 0.2 };
+    SixDofJoint_t joints = { 0.2f, 1.2f, 1.5f, 0.5f, -0.4f, 0.2f };
     Pose_t pose;
     s_six_dof_fk(&joints, &pose);
-    printf("FK Pose: X= "); printf_double(pose.position.x);
-    printf(" Y= "); printf_double(pose.position.y);
-    printf(" Z= "); printf_double(pose.position.z);
+    printf("FK Pose: X= "); printf_float(pose.position.x);
+    printf(" Y= "); printf_float(pose.position.y);
+    printf(" Z= "); printf_float(pose.position.z);
     printf("\r\n");
 
     SixDofJoint_t ik_joints;
     s_six_dof_ik(&pose, &ik_joints, &joints);
-    printf("IK Joints: "); printf_double(ik_joints.joint_1);
-    printf("  "); printf_double(ik_joints.joint_2);
-    printf("  "); printf_double(ik_joints.joint_3);
-    printf("  "); printf_double(ik_joints.joint_4);
-    printf("  "); printf_double(ik_joints.joint_5);
-    printf("  "); printf_double(ik_joints.joint_6);
+    printf("IK Joints: "); printf_float(ik_joints.joint_1);
+    printf("  "); printf_float(ik_joints.joint_2);
+    printf("  "); printf_float(ik_joints.joint_3);
+    printf("  "); printf_float(ik_joints.joint_4);
+    printf("  "); printf_float(ik_joints.joint_5);
+    printf("  "); printf_float(ik_joints.joint_6);
     printf("\r\n");
 }
 
