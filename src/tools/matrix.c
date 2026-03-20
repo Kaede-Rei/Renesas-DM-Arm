@@ -15,7 +15,14 @@
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
-
+/**
+ * @brief 创建一个矩阵结构体
+ * @param m 输出的矩阵结构体
+ * @param row 矩阵的行数
+ * @param col 矩阵的列数
+ * @param data 矩阵数据的指针，必须至少包含 row * col 个 float 元素
+ * @return MatrixErrorCode 错误码
+ */
 MatrixErrorCode matrix(Matrix* const m, unsigned int row, unsigned int col, float* data) {
     if(m == NULL || data == NULL || row == 0 || col == 0) return MATRIX_CREATE_FAILED;
 
@@ -26,6 +33,13 @@ MatrixErrorCode matrix(Matrix* const m, unsigned int row, unsigned int col, floa
     return MATRIX_SUCCESS;
 }
 
+/**
+ * @brief 创建一个单位矩阵
+ * @param m 输出的矩阵结构体
+ * @param size 矩阵的行列数，必须为正整数
+ * @param data 矩阵数据的指针，必须至少包含 size * size 个 float 元素
+ * @return MatrixErrorCode 错误码
+ */
 MatrixErrorCode matrix_identity(Matrix* const m, unsigned int size, float* data) {
     if(m == NULL || data == NULL || size == 0) return MATRIX_CREATE_FAILED;
 
@@ -42,6 +56,14 @@ MatrixErrorCode matrix_identity(Matrix* const m, unsigned int size, float* data)
     return MATRIX_SUCCESS;
 }
 
+/**
+ * @brief 获取矩阵中指定位置的元素值
+ * @param m 输入的矩阵结构体
+ * @param r 行索引，范围 0 到 m->row - 1
+ * @param c 列索引，范围 0 到 m->col - 1
+ * @param value 输出的元素值指针
+ * @return MatrixErrorCode 错误码
+ */
 MatrixErrorCode matrix_get(const Matrix* const m, unsigned int r, unsigned int c, float* value) {
     if(m == NULL || m->pdata == NULL || r >= m->row || c >= m->col) return MATRIX_INVALID;
     if(value == NULL) return MATRIX_ERROR;

@@ -63,7 +63,7 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     float dy = 0.059971f;
     float phi = atan2f(dy, dx);
     float a3 = sqrtf(powf(dx, 2) + powf(dy, 2));
-    ArmMDH_t mdh = {
+    ArmMDH mdh = {
         .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
         .a = { 0, 0.02f, 0.264f, a3, 0.061868f, 0 },
         .d = { 0.1f, 0, 0, 0, 0, 0.19f },
@@ -73,41 +73,70 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     };
     s_six_dof_init(&mdh);
 
-    SixDofJoint_t joints = { 0.0f, 0.0f, 0.01f, 0.0f, 0.0f, 0.0f };
-    Pose_t pose;
+    SixDofJoint joints = { 0.0f, 0.0f, 0.01f, 0.0f, 0.0f, 0.0f };
+    Pose pose;
     s_six_dof_fk(&joints, &pose);
     pose.position.x = 0.1f;
     pose.position.y = 0.3f;
     pose.position.z = 0.2f;
 
-    SixDofJoint_t ik_joints = { 0 };
-    ArmErrorCode_t ret = s_six_dof_ik(&pose, &ik_joints, &joints);
+    // SixDofJoint ik_joints = { 0 };
+    // ArmErrorCode ret = s_six_dof_ik(&pose, &ik_joints, &joints, IK_MODE_POSITION_ONLY);
+    // if(ret != ARM_SUCCESS) {
+    //     printf("IK failed: %d\r\n", ret);
+    //     return;
+    // }
+
+    // printf("IK Joints: ");
+    // printf_float(ik_joints.joint_1); printf(" ");
+    // printf_float(ik_joints.joint_2); printf(" ");
+    // printf_float(ik_joints.joint_3); printf(" ");
+    // printf_float(ik_joints.joint_4); printf(" ");
+    // printf_float(ik_joints.joint_5); printf(" ");
+    // printf_float(ik_joints.joint_6); printf("\r\n");
+
+    // Pose verify_pose;
+    // s_six_dof_fk(&ik_joints, &verify_pose);
+    // printf("Position error: ");
+    // printf_float(pose.position.x - verify_pose.position.x); printf(" ");
+    // printf_float(pose.position.y - verify_pose.position.y); printf(" ");
+    // printf_float(pose.position.z - verify_pose.position.z); printf("\r\n");
+
+    // d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
+    // d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
+    // d_dm_set_pos_spd(0x03, ik_joints.joint_3, 1.57f);
+    // d_dm_set_pos_spd(0x04, ik_joints.joint_4, 1.57f);
+    // d_dm_set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
+    // d_dm_set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
+
+    printf("Starting IK tests...\r\n");
+    SixDofJointAll all_joints = { 0 };
+    ArmErrorCode ret = s_six_dof_all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
     if(ret != ARM_SUCCESS) {
-        printf("IK failed: %d\r\n", ret);
+        printf("All IK failed: %d\r\n", ret);
         return;
     }
+    printf("Found %d IK solutions\r\n", all_joints.num_solutions);
+    for(uint8_t i = 0; i < all_joints.num_solutions; i++) {
+        SixDofJoint* s = solution_select(&all_joints, i);
+        if(!s) continue;
+        printf("--------------------------------------------------\r\n");
+        printf("- Solution %d: ", i + 1);
+        printf_float(s->joint_1); printf(" ");
+        printf_float(s->joint_2); printf(" ");
+        printf_float(s->joint_3); printf(" ");
+        printf_float(s->joint_4); printf(" ");
+        printf_float(s->joint_5); printf(" ");
+        printf_float(s->joint_6); printf("\r\n");
 
-    printf("IK Joints: ");
-    printf_float(ik_joints.joint_1); printf(" ");
-    printf_float(ik_joints.joint_2); printf(" ");
-    printf_float(ik_joints.joint_3); printf(" ");
-    printf_float(ik_joints.joint_4); printf(" ");
-    printf_float(ik_joints.joint_5); printf(" ");
-    printf_float(ik_joints.joint_6); printf("\r\n");
-
-    Pose_t verify_pose;
-    s_six_dof_fk(&ik_joints, &verify_pose);
-    printf("Position error: ");
-    printf_float(pose.position.x - verify_pose.position.x); printf(" ");
-    printf_float(pose.position.y - verify_pose.position.y); printf(" ");
-    printf_float(pose.position.z - verify_pose.position.z); printf("\r\n");
-
-    d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
-    d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
-    d_dm_set_pos_spd(0x03, ik_joints.joint_3, 1.57f);
-    d_dm_set_pos_spd(0x04, ik_joints.joint_4, 1.57f);
-    d_dm_set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
-    d_dm_set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
+        Pose verify_pose;
+        s_six_dof_fk(s, &verify_pose);
+        printf("- Position Error: ");
+        printf_float(verify_pose.position.x - pose.position.x); printf(" ");
+        printf_float(verify_pose.position.y - pose.position.y); printf(" ");
+        printf_float(verify_pose.position.z - pose.position.z); printf("\r\n");
+        printf("--------------------------------------------------\r\n");
+    }
 }
 
 /*******************************************************************************************************************//**

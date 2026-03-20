@@ -5,6 +5,16 @@
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
+/**
+ * @brief 矩阵错误码
+ * @param MATRIX_SUCCESS 成功
+ * @param MATRIX_ERROR 一般错误
+ * @param MATRIX_CREATE_FAILED 矩阵创建失败，可能是内存不足
+ * @param MATRIX_INVALID 无效的矩阵输入，例如空指针或维度不匹配
+ * @param MATRIX_CANNOT_COMPUTE 无法计算，例如矩阵乘法维度
+ * @param MATRIX_PIVOT_IS_ZERO 在求逆过程中遇到零主元，矩阵可能是奇异的
+ * @param MATRIX_INPLACE 输入输出矩阵指向同一内存地址，可能导致未定义行为
+ */
 typedef enum {
     MATRIX_SUCCESS = 0,
     MATRIX_ERROR,
@@ -15,6 +25,12 @@ typedef enum {
     MATRIX_INPLACE,
 } MatrixErrorCode;
 
+/**
+ * @brief 矩阵结构体，包含数据指针和维度信息
+ * @param pdata 指向矩阵数据的指针，按行优先存储
+ * @param row 矩阵的行数
+ * @param col 矩阵的列数
+ */
 typedef struct {
     float* pdata;
     unsigned int row;
@@ -23,10 +39,26 @@ typedef struct {
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
+/**
+ * @brief 创建一个矩阵，用户需要提供数据缓冲区
+ * @param name 矩阵名称
+ * @param row 行数
+ * @param col 列数
+ * @note 该宏会定义一个名为 name##_data 的 float 数组作为矩阵数据存储，并创建一个 Matrix 结构体指向该数据
+ * @note 创建后 name 就是可用的矩阵变量
+ */
 #define matrix_create(name, row, col) \
     float name##_data[row * col]; \
     Matrix name; \
     matrix(&name, row, col, name##_data)
+
+/**
+ * @brief 创建一个单位矩阵，用户需要提供数据缓冲区
+ * @param name 矩阵名称
+ * @param size 矩阵的行列数，单位矩阵必须是方阵
+ * @note 该宏会定义一个名为 name##_data 的 float 数组作为矩阵数据存储，并创建一个 Matrix 结构体指向该数据，然后将其初始化为单位矩阵
+ * @note 创建后 name 就是可用的单位矩阵变量
+ */
 #define matrix_identity_create(name, size) \
     float name##_data[size * size]; \
     Matrix name; \

@@ -26,7 +26,19 @@ typedef enum {
     ARM_ERROR_INVALID_POSE,
     ARM_ERROR_SINGULARITY,
     ARM_ERROR_OUT_OF_REACH
-} ArmErrorCode_t;
+} ArmErrorCode;
+
+/**
+ * @brief 逆运动学求解模式
+ * @param IK_MODE_POSITION_ONLY 只约束末端位置，姿态在关节限幅内自由
+ * @param IK_MODE_ORIENTATION_ONLY 只约束末端姿态，位置自由
+ * @param IK_MODE_FULL_POSE 同时约束位置和姿态
+ */
+typedef enum {
+    IK_MODE_POSITION_ONLY = 0,
+    IK_MODE_ORIENTATION_ONLY,
+    IK_MODE_FULL_POSE,
+} IkMode;
 
 /**
  * @brief 机械臂的MDH参数结构体
@@ -44,7 +56,7 @@ typedef struct {
     float offset[6];
     float qmin[6];
     float qmax[6];
-} ArmMDH_t;
+} ArmMDH;
 
 /**
  * @brief 位置结构体
@@ -56,7 +68,7 @@ typedef struct {
     float x;
     float y;
     float z;
-} Point_t;
+} Point;
 
 /**
  * @brief 四元数结构体
@@ -70,7 +82,19 @@ typedef struct {
     float y;
     float z;
     float w;
-} Quaternion_t;
+} Quaternion;
+
+/**
+ * @brief 欧拉角结构体
+ * @param roll 绕 x 轴的旋转
+ * @param pitch 绕 y 轴的旋转
+ * @param yaw 绕 z 轴的旋转
+ */
+typedef struct {
+    float roll;
+    float pitch;
+    float yaw;
+} RPY;
 
 /**
  * @brief 位姿结构体
@@ -78,9 +102,9 @@ typedef struct {
  * @param orientation 姿态（四元数）
  */
 typedef struct {
-    Point_t position;
-    Quaternion_t orientation;
-} Pose_t;
+    Point position;
+    Quaternion orientation;
+} Pose;
 
 /**
  * @brief geometry_msgs 结构体，包含位姿、位置和四元数
@@ -89,10 +113,10 @@ typedef struct {
  * @param quat 四元数
  */
 typedef struct {
-    Pose_t pose;
-    Point_t point;
-    Quaternion_t quat;
-} geometry_msgs_t;
+    Pose pose;
+    Point point;
+    Quaternion quat;
+} geometry_msgs;
 
 /**
  * @brief 机械臂的六自由度关节结构体
@@ -110,7 +134,7 @@ typedef struct {
     float joint_4;
     float joint_5;
     float joint_6;
-} SixDofJoint_t;
+} SixDofJoint;
 
 /**
  * @brief 机械臂的六自由度关节解结构体，包含所有可能的解
@@ -126,21 +150,25 @@ typedef struct {
  */
 typedef struct {
     uint8_t num_solutions;
-    SixDofJoint_t solution_1;
-    SixDofJoint_t solution_2;
-    SixDofJoint_t solution_3;
-    SixDofJoint_t solution_4;
-    SixDofJoint_t solution_5;
-    SixDofJoint_t solution_6;
-    SixDofJoint_t solution_7;
-    SixDofJoint_t solution_8;
-} SixDofJointAll_t;
+    SixDofJoint solution_1;
+    SixDofJoint solution_2;
+    SixDofJoint solution_3;
+    SixDofJoint solution_4;
+    SixDofJoint solution_5;
+    SixDofJoint solution_6;
+    SixDofJoint solution_7;
+    SixDofJoint solution_8;
+} SixDofJointAll;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-ArmErrorCode_t s_six_dof_init(const ArmMDH_t* mdh);
-ArmErrorCode_t s_six_dof_fk(const SixDofJoint_t* joints, Pose_t* pose);
-ArmErrorCode_t s_six_dof_ik(const Pose_t* pose, SixDofJoint_t* joints, const SixDofJoint_t* current_joints);
-ArmErrorCode_t s_six_dof_all_ik(const Pose_t* pose, SixDofJointAll_t* joints);
+ArmErrorCode s_six_dof_init(const ArmMDH* mdh);
+ArmErrorCode s_six_dof_fk(const SixDofJoint* joints, Pose* pose);
+ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode);
+ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode mode);
+SixDofJoint* solution_select(SixDofJointAll* sols, uint8_t idx);
+
+Quaternion s_rpy_to_quat(const RPY rpy);
+RPY s_quat_to_rpy(const Quaternion q);
 
 #endif
