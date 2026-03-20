@@ -51,8 +51,11 @@ void sys_init(RingBuf_t* uart_rx_buf) {
 
     // 测试电机
     d_dm_enable(0x01);
-    printf("Enable DM 1!\r\n");
-    d_dm_set_spd(0x01, 3.14f);
+    d_dm_enable(0x02);
+    d_dm_enable(0x03);
+    d_dm_enable(0x04);
+    d_dm_enable(0x05);
+    d_dm_enable(0x06);
 
     // 测试 FK - IK
     s_delay_ms(1000);
@@ -70,23 +73,41 @@ void sys_init(RingBuf_t* uart_rx_buf) {
     };
     s_six_dof_init(&mdh);
 
-    SixDofJoint_t joints = { 0.2f, 1.2f, 1.5f, 0.5f, -0.4f, 0.2f };
+    SixDofJoint_t joints = { 0.0f, 0.0f, 0.01f, 0.0f, 0.0f, 0.0f };
     Pose_t pose;
     s_six_dof_fk(&joints, &pose);
-    printf("FK Pose: X= "); printf_float(pose.position.x);
-    printf(" Y= "); printf_float(pose.position.y);
-    printf(" Z= "); printf_float(pose.position.z);
-    printf("\r\n");
+    pose.position.x = 0.1f;
+    pose.position.y = 0.3f;
+    pose.position.z = 0.2f;
 
-    SixDofJoint_t ik_joints;
-    s_six_dof_ik(&pose, &ik_joints, &joints);
-    printf("IK Joints: "); printf_float(ik_joints.joint_1);
-    printf("  "); printf_float(ik_joints.joint_2);
-    printf("  "); printf_float(ik_joints.joint_3);
-    printf("  "); printf_float(ik_joints.joint_4);
-    printf("  "); printf_float(ik_joints.joint_5);
-    printf("  "); printf_float(ik_joints.joint_6);
-    printf("\r\n");
+    SixDofJoint_t ik_joints = { 0 };
+    ArmErrorCode_t ret = s_six_dof_ik(&pose, &ik_joints, &joints);
+    if(ret != ARM_SUCCESS) {
+        printf("IK failed: %d\r\n", ret);
+        return;
+    }
+
+    printf("IK Joints: ");
+    printf_float(ik_joints.joint_1); printf(" ");
+    printf_float(ik_joints.joint_2); printf(" ");
+    printf_float(ik_joints.joint_3); printf(" ");
+    printf_float(ik_joints.joint_4); printf(" ");
+    printf_float(ik_joints.joint_5); printf(" ");
+    printf_float(ik_joints.joint_6); printf("\r\n");
+
+    Pose_t verify_pose;
+    s_six_dof_fk(&ik_joints, &verify_pose);
+    printf("Position error: ");
+    printf_float(pose.position.x - verify_pose.position.x); printf(" ");
+    printf_float(pose.position.y - verify_pose.position.y); printf(" ");
+    printf_float(pose.position.z - verify_pose.position.z); printf("\r\n");
+
+    d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
+    d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
+    d_dm_set_pos_spd(0x03, ik_joints.joint_3, 1.57f);
+    d_dm_set_pos_spd(0x04, ik_joints.joint_4, 1.57f);
+    d_dm_set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
+    d_dm_set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
 }
 
 /*******************************************************************************************************************//**

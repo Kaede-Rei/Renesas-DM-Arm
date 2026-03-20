@@ -2,22 +2,41 @@
 #define _simple_api_h_
 
 #include <stdio.h>
-#include <math.h>
 
 // ! ========================= GPIO / IOPORT 简 化 宏 ========================= ! //
 
 static inline void printf_float(float val) {
+    if(val < 0) {
+        printf("-");
+        val = -val;
+    }
+
     unsigned int int_part = (unsigned int)val;
-    unsigned int frac_part = (unsigned int)(fabs(val - (float)int_part) * 1000);
-    if(val >= 0) printf("%d.%03d", int_part, frac_part);
-    else printf("-%d.%03d", int_part, frac_part);
+    unsigned int frac_part = (unsigned int)((val - (float)int_part) * 1000.0f + 0.5f); // +0.5f 用于四舍五入
+
+    if(frac_part >= 1000) {
+        int_part += 1;
+        frac_part = 0;
+    }
+
+    printf("%u.%03u", int_part, frac_part);
 }
 
 static inline void printf_double(double val) {
-    unsigned int int_part = (unsigned int)val;
-    unsigned int frac_part = (unsigned int)(fabs(val - (double)int_part) * 1000);
-    if(val >= 0) printf("%d.%03d", int_part, frac_part);
-    else printf("-%d.%03d", int_part, frac_part);
+    if(val < 0) {
+        printf("-");
+        val = -val;
+    }
+
+    unsigned long long int_part = (unsigned long long)val;
+    unsigned long long frac_part = (unsigned long long)((val - (double)int_part) * 1000000000.0 + 0.5); // +0.5 用于四舍五入
+
+    if(frac_part >= 1000000000) {
+        int_part += 1;
+        frac_part = 0;
+    }
+
+    printf("%llu.%09llu", int_part, frac_part);
 }
 
 /**

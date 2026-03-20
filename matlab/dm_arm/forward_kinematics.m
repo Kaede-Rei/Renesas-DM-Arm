@@ -13,7 +13,7 @@ function main()
     L5 = Link('alpha', pi/2,   'a', 0.061868, 'd', 0,      'offset', pi/2,     'modified');
     L6 = Link('alpha', pi/2,   'a', 0,        'd', 0.19,   'offset', 0,        'modified');
 
-    % 添加关节运动限位
+    % 关节运动限位
     L1.qlim = [-2.0944, 2.0944];
     L2.qlim = [0, pi];
     L3.qlim = [0, 1.5*pi];

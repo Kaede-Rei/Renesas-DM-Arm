@@ -46,8 +46,8 @@ DmMotorErrorCode_e d_dm_disable(uint16_t id) {
 /**
  * @brief 设置电机为 MIT 模式并发送控制命令
  * @param id 电机 ID
- * @param pos 目标位置，单位为转，范围为 -12.5 到 12.5
- * @param spd 目标速度，单位为转每秒，范围为 -10 到 10
+ * @param pos 目标位置，单位为弧度，范围为 -12.5 到 12.5
+ * @param spd 目标速度，单位为弧度每秒，范围为 -10 到 10
  * @param kp 位置环比例增益，范围为 0 到 500
  * @param kd 位置环微分增益，范围为 0 到 5
  * @param torque 目标电流，单位为 A，范围为 -28 到 28
@@ -78,8 +78,8 @@ DmMotorErrorCode_e d_dm_set_mit(uint16_t id, float pos, float spd, float kp, flo
 /**
  * @brief 设置电机为位置速度模式并发送控制命令
  * @param id 电机 ID
- * @param pos 目标位置，单位为转，范围为 -12.5 到 12.5
- * @param spd 目标速度，单位为转每秒，范围为 -10 到 10
+ * @param pos 目标位置，单位为弧度，范围为 -12.5 到 12.5
+ * @param spd 目标速度，单位为弧度每秒，范围为 -10 到 10
  * @return DmMotorErrorCode_e 枚举类型，表示操作结果
  */
 DmMotorErrorCode_e d_dm_set_pos_spd(uint16_t id, float pos, float spd) {
@@ -96,7 +96,7 @@ DmMotorErrorCode_e d_dm_set_pos_spd(uint16_t id, float pos, float spd) {
 /**
  * @brief 设置电机为速度模式并发送控制命令
  * @param id 电机 ID
- * @param spd 目标速度，单位为转每秒，范围为 -10 到 10
+ * @param spd 目标速度，单位为弧度每秒，范围为 -10 到 10
  * @return DmMotorErrorCode_e 枚举类型，表示操作结果
  */
 DmMotorErrorCode_e d_dm_set_spd(uint16_t id, float spd) {
@@ -112,8 +112,8 @@ DmMotorErrorCode_e d_dm_set_spd(uint16_t id, float spd) {
 /**
  * @brief 设置电机为位置速度电流模式并发送控制命令
  * @param id 电机 ID
- * @param pos 目标位置，单位为转，范围为 -12.5 到 12.5
- * @param spd 目标速度，单位为转每秒，范围为 -10 到 10
+ * @param pos 目标位置，单位为弧度，范围为 -12.5 到 12.5
+ * @param spd 目标速度，单位为弧度每秒，范围为 -10 到 10
  * @param cur 目标电流，单位为 A，范围为 -28 到 28
  * @return DmMotorErrorCode_e 枚举类型，表示操作结果
  */
@@ -191,7 +191,7 @@ DmMotorErrorCode_e d_dm_get_err_code(uint16_t id, uint8_t* err_code, uint32_t ti
 /**
  * @brief 获取电机位置
  * @param id 电机 ID
- * @param pos 存储位置的指针，单位为转
+ * @param pos 存储位置的指针，单位为弧度
  * @param timeout_ms 等待反馈的超时时间，单位为毫秒
  * @return DmMotorErrorCode_e 枚举类型，表示操作结果
  */
@@ -215,7 +215,7 @@ DmMotorErrorCode_e d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms) {
 /**
  * @brief 获取电机速度
  * @param id 电机 ID
- * @param spd 存储速度的指针，单位为转每秒
+ * @param spd 存储速度的指针，单位为弧度每秒
  * @param timeout_ms 等待反馈的超时时间，单位为毫秒
  * @return DmMotorErrorCode_e 枚举类型，表示操作结果
  */

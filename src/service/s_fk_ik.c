@@ -75,7 +75,7 @@ ArmErrorCode_t s_six_dof_ik(const Pose_t* pose, SixDofJoint_t* joints, const Six
     matrix_create(dq, 6, 1);
 
     float eps = 1e-5f;
-    float lambda = 0.01f;
+    float lambda = 1e-4f;
     float x, y, z;
     float x2, y2, z2;
     float alpha = 0.5f;
@@ -103,7 +103,6 @@ ArmErrorCode_t s_six_dof_ik(const Pose_t* pose, SixDofJoint_t* joints, const Six
         float norm = sqrtf(err.pdata[0] * err.pdata[0] +
             err.pdata[1] * err.pdata[1] +
             err.pdata[2] * err.pdata[2]);
-        alpha = fminf(0.5f, norm);
 
         if(norm < 1e-4f) {
             array_to_joints(&q, joints);
