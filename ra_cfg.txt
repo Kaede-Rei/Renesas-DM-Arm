@@ -231,8 +231,8 @@ FSP Configuration
       P502 R4 - - - - Disabled - - "ADC1: AN118; AGT2: AGTOA2; GPT_OPS0: GTIW; ICU0: IRQ12; QSPI0: QIO0; SCI5: RXD5; SCI5: SCL5; SCI6: CTS6; USB_FS0: USB_OVRCURB" - None - - 
       P503 N5 - - - - Disabled - - "ADC1: AN119; AGT2: AGTOB2; GPT_POEG2: GTETRGC; QSPI0: QIO1; SCI5: SCK5; SCI6: CTSRTS6; USB_FS0: USB_EXICEN" - None - - 
       P504 P5 - - - - Disabled - - "ADC1: AN120; AGT3: AGTOA3; BUS_ASYNCH0: ALE; GPT_POEG3: GTETRGD; QSPI0: QIO2; SCI5: CTSRTS5; SCI6: SCK6; USB_FS0: USB_ID" - None - - 
-      P505 P6 - - - - Disabled - - "ADC1: AN121; AGT3: AGTOB3; ICU0: IRQ14; QSPI0: QIO3; SCI6: RXD6; SCI6: SCL6" - None - - 
-      P506 R5 - - - - Disabled - - "ADC1: AN122; ICU0: IRQ15; SCI6: SDA6; SCI6: TXD6" - None - - 
+      P505 P6 SCI6_RXD6 - Low None "Peripheral mode" CMOS None "ADC1: AN121; AGT3: AGTOB3; ICU0: IRQ14; QSPI0: QIO3; SCI6: RXD6; SCI6: SCL6" - IO - - 
+      P506 R5 SCI6_TXD6 - Low None "Peripheral mode" CMOS None "ADC1: AN122; ICU0: IRQ15; SCI6: SDA6; SCI6: TXD6" - IO - - 
       P507 N6 - - - - Disabled - - "ADC1: AN123; SCI5: SCK5; SCI6: SCK6" - None - - 
       P508 R6 - - - - Disabled - - "ADC1: AN124; SCI5: CTSRTS5" - None - - 
       P511 P13 - - - - Disabled - - "CAN1: CRX1; GPT0: GTIOC0B; ICU0: IRQ15; IIC1: SDA1; SCI4: RXD4; SCI4: SCL4" - None - - 
@@ -526,4 +526,33 @@ FSP Configuration
       Channel Error Interrupts: 
       Interrupts: Channel Interrupt Priority Level: Priority 12
       Filter List Array: p_canfd0_afl
+      
+    Instance "g_uart6 UART (r_sci_uart)"
+      General: Name: g_uart6
+      General: Channel: 6
+      General: Data Bits: 8bits
+      General: Parity: None
+      General: Stop Bits: 1bit
+      Baud: Baud Rate: 115200
+      Baud: Baud Rate Modulation: Disabled
+      Baud: Max Error (%): 5
+      Flow Control: CTS/RTS Selection: Hardware RTS
+      Flow Control: Software RTS Port: Disabled
+      Flow Control: Software RTS Pin: Disabled
+      Extra: Clock Source: Internal Clock
+      Extra: Start bit detection: Falling Edge
+      Extra: Noise Filter: Disable
+      Extra: Receive FIFO Trigger Level: Max
+      Extra: IrDA: Enable: Disabled
+      Extra: IrDA: RXD Polarity Switching: Normal
+      Extra: IrDA: TXD Polarity Switching: Normal
+      Extra: RS-485: DE Pin: Disable
+      Extra: RS-485: DE Pin Polarity: Active High
+      Extra: RS-485: DE Port Number: Disabled
+      Extra: RS-485: DE Pin Number: Disabled
+      Interrupts: Callback: uart6_callback
+      Interrupts: Receive Interrupt Priority: Priority 11
+      Interrupts: Transmit Data Empty Interrupt Priority: Priority 12
+      Interrupts: Transmit End Interrupt Priority: Priority 12
+      Interrupts: Error Interrupt Priority: Priority 12
       

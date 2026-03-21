@@ -2,7 +2,7 @@
 #include "hal_data.h"
 
 // 工具库
-// #include "tools/simple_api.h"
+#include "tools/simple_api.h"
 #include "tools/ring_buf.h"
 
 // 标准库
@@ -15,13 +15,19 @@
 #include "drive/d_uart.h"
 #include "drive/d_can.h"
 #include "drive/d_systick.h"
+#include "drive/d_wifi_bt.h"
 
 // 服务层
 #include "service/s_delay.h"
 #include "service/s_fk_ik.h"
-#include "tools/simple_api.h"
+#include "service/s_comms.h"
 
 // 应用层
+
+
+
+// 测试函数
+void fk_ik_test();
 
 #if (1 == BSP_MULTICORE_PROJECT) && BSP_TZ_SECURE_BUILD
 bsp_ipc_semaphore_handle_t g_core_start_semaphore =
@@ -34,109 +40,27 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  * @brief 系统初始化函数
  * @note 该函数在 hal_entry() 中被调用，用于初始化系统资源和外设
  */
-void sys_init(RingBuf_t* uart_rx_buf);
-void sys_init(RingBuf_t* uart_rx_buf) {
-    // 初始化 SysTick 定时器
-    if(d_systick_init() != FSP_SUCCESS) {
-        while(1);
-    }
+void sys_init(RingBuf* uart6_rx_buf, RingBuf* uart7_rx_buf, WifiBtConnectInfo* info);
+void sys_init(RingBuf* uart6_rx_buf, RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
+    if(d_systick_init() != FSP_SUCCESS) while(1);
     s_delay_init(d_systick_get_ms, d_systick_is_timeout);
 
-    d_uart_init(UART7, uart_rx_buf);
+    d_uart_init(UART7, uart7_rx_buf);
+    d_wifi_bt_init(UART6, uart6_rx_buf, STA);
     d_can_init();
 
     s_delay_ms(2000);
     d_led_on();
     printf("System Init Complete!\r\n");
 
-    // 测试电机
-    d_dm_enable(0x01);
-    d_dm_enable(0x02);
-    d_dm_enable(0x03);
-    d_dm_enable(0x04);
-    d_dm_enable(0x05);
-    d_dm_enable(0x06);
+    d_wifi_bt_join_ap("K230", "12345678");
+    info->protocol = TCP;
+    info->role = Client;
+    strcpy(info->ip, "192.168.169.1");
+    info->remote_port = 8080;
+    info->local_port = 5000;
 
-    // 测试 FK - IK
-    s_delay_ms(1000);
-    float dx = 0.244004f;
-    float dy = 0.059971f;
-    float phi = atan2f(dy, dx);
-    float a3 = sqrtf(powf(dx, 2) + powf(dy, 2));
-    ArmMDH mdh = {
-        .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
-        .a = { 0, 0.02f, 0.264f, a3, 0.061868f, 0 },
-        .d = { 0.1f, 0, 0, 0, 0, 0.19f },
-        .offset = { M_PI / 2, M_PI, phi - M_PI, -phi, M_PI / 2, 0 },
-        .qmin = { -2.0944f, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
-        .qmax = { 2.0944f, M_PI, 1.5f * M_PI, M_PI / 2, M_PI / 2, M_PI }
-    };
-    s_six_dof_init(&mdh);
-
-    SixDofJoint joints = { 0.0f, 0.0f, 0.01f, 0.0f, 0.0f, 0.0f };
-    Pose pose;
-    s_six_dof_fk(&joints, &pose);
-    pose.position.x = 0.1f;
-    pose.position.y = 0.3f;
-    pose.position.z = 0.2f;
-
-    // SixDofJoint ik_joints = { 0 };
-    // ArmErrorCode ret = s_six_dof_ik(&pose, &ik_joints, &joints, IK_MODE_POSITION_ONLY);
-    // if(ret != ARM_SUCCESS) {
-    //     printf("IK failed: %d\r\n", ret);
-    //     return;
-    // }
-
-    // printf("IK Joints: ");
-    // printf_float(ik_joints.joint_1); printf(" ");
-    // printf_float(ik_joints.joint_2); printf(" ");
-    // printf_float(ik_joints.joint_3); printf(" ");
-    // printf_float(ik_joints.joint_4); printf(" ");
-    // printf_float(ik_joints.joint_5); printf(" ");
-    // printf_float(ik_joints.joint_6); printf("\r\n");
-
-    // Pose verify_pose;
-    // s_six_dof_fk(&ik_joints, &verify_pose);
-    // printf("Position error: ");
-    // printf_float(pose.position.x - verify_pose.position.x); printf(" ");
-    // printf_float(pose.position.y - verify_pose.position.y); printf(" ");
-    // printf_float(pose.position.z - verify_pose.position.z); printf("\r\n");
-
-    // d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
-    // d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
-    // d_dm_set_pos_spd(0x03, ik_joints.joint_3, 1.57f);
-    // d_dm_set_pos_spd(0x04, ik_joints.joint_4, 1.57f);
-    // d_dm_set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
-    // d_dm_set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
-
-    printf("Starting IK tests...\r\n");
-    SixDofJointAll all_joints = { 0 };
-    ArmErrorCode ret = s_six_dof_all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
-    if(ret != ARM_SUCCESS) {
-        printf("All IK failed: %d\r\n", ret);
-        return;
-    }
-    printf("Found %d IK solutions\r\n", all_joints.num_solutions);
-    for(uint8_t i = 0; i < all_joints.num_solutions; i++) {
-        SixDofJoint* s = solution_select(&all_joints, i);
-        if(!s) continue;
-        printf("--------------------------------------------------\r\n");
-        printf("- Solution %d: ", i + 1);
-        printf_float(s->joint_1); printf(" ");
-        printf_float(s->joint_2); printf(" ");
-        printf_float(s->joint_3); printf(" ");
-        printf_float(s->joint_4); printf(" ");
-        printf_float(s->joint_5); printf(" ");
-        printf_float(s->joint_6); printf("\r\n");
-
-        Pose verify_pose;
-        s_six_dof_fk(s, &verify_pose);
-        printf("- Position Error: ");
-        printf_float(verify_pose.position.x - pose.position.x); printf(" ");
-        printf_float(verify_pose.position.y - pose.position.y); printf(" ");
-        printf_float(verify_pose.position.z - pose.position.z); printf("\r\n");
-        printf("--------------------------------------------------\r\n");
-    }
+    // fk_ik_test();
 }
 
 /*******************************************************************************************************************//**
@@ -146,23 +70,54 @@ void sys_init(RingBuf_t* uart_rx_buf) {
 void hal_entry(void) {
     /* TODO: add your own code here */
 
-    uint8_t rx_buffer[256];
-    RingBuf_t buf;
-    RingBuf(&buf, rx_buffer, sizeof(rx_buffer), 1);
+    uint8_t uart6_buffer[256];
+    RingBuf buf6;
+    RingBufCreate(&buf6, uart6_buffer, sizeof(uart6_buffer), 1);
 
-    sys_init(&buf);
+    uint8_t uart7_buffer[256];
+    RingBuf buf7;
+    RingBufCreate(&buf7, uart7_buffer, sizeof(uart7_buffer), 1);
+
+    WifiBtConnectInfo info;
+    sys_init(&buf6, &buf7, &info);
 
     ms_t dm_update_task = 0;
-    ms_t dm_printf_task = 0;
+    ms_t comms_process_task = 0;
+    ms_t connect_retry_task = 0;
     DmMotorFeedback_t feedback;
+
+    bool is_connected = false;
+    uint8_t buffer[256];
 
     while(1) {
         if(s_nb_delay_ms(&dm_update_task, 10)) {
             d_dm_request_feedback(0x01);
             d_dm_update(&feedback);
         }
-        if(s_nb_delay_ms(&dm_printf_task, 1000)) {
-            // printf("DM %d Pos: ", feedback.id); printf_float(feedback.pos); printf("\r\n");
+        if(!is_connected) {
+            if(s_nb_delay_ms(&connect_retry_task, 5000)) {
+                printf("正在尝试建立 TCP 连接...\r\n");
+                if(d_wifi_bt_connect(&info, 5000) == WIFI_BT_SUCCESS) {
+                    is_connected = true;
+                    printf("TCP 连接成功!\r\n");
+                }
+                else {
+                    printf("TCP 连接失败，5秒后重试。\r\n");
+                }
+            }
+        }
+        else {
+            if(s_nb_delay_ms(&comms_process_task, 100)) {
+                const char* msg = "Hello K230!";
+                if(d_wifi_bt_send(info, (uint8_t*)msg, (uint16_t)strlen(msg)) == WIFI_BT_SUCCESS) {
+                    printf("数据发送成功\r\n");
+                }
+                else is_connected = false;
+                if(d_wifi_bt_recv(info, buffer, sizeof(buffer), 1000) == WIFI_BT_SUCCESS) {
+                    printf("接收到数据: %s\r\n", buffer);
+                }
+                else is_connected = false;
+            }
         }
     }
 
@@ -208,3 +163,94 @@ BSP_CMSE_NONSECURE_ENTRY void template_nonsecure_callable() {
 FSP_CPP_FOOTER
 
 #endif
+
+void fk_ik_test() {
+    // 测试电机
+    d_dm_enable(0x01);
+    d_dm_enable(0x02);
+    d_dm_enable(0x03);
+    d_dm_enable(0x04);
+    d_dm_enable(0x05);
+    d_dm_enable(0x06);
+
+    // 测试 FK - IK
+    s_delay_ms(1000);
+    float dx = 0.244004f;
+    float dy = 0.059971f;
+    float phi = atan2f(dy, dx);
+    float a3 = sqrtf(powf(dx, 2) + powf(dy, 2));
+    ArmMDH mdh = {
+        .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
+        .a = { 0, 0.02f, 0.264f, a3, 0.061868f, 0 },
+        .d = { 0.1f, 0, 0, 0, 0, 0.19f },
+        .offset = { M_PI / 2, M_PI, phi - M_PI, -phi, M_PI / 2, 0 },
+        .qmin = { -2.0944f, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
+        .qmax = { 2.0944f, M_PI, 1.5f * M_PI, M_PI / 2, M_PI / 2, M_PI }
+    };
+    s_six_dof_init(&mdh);
+
+    SixDofJoint joints = { 0.0f, 0.0f, 0.01f, 0.0f, 0.0f, 0.0f };
+    Pose pose;
+    s_six_dof_fk(&joints, &pose);
+    pose.position.x = 0.1f;
+    pose.position.y = 0.3f;
+    pose.position.z = 0.2f;
+
+    SixDofJoint ik_joints = { 0 };
+    ArmErrorCode ret = s_six_dof_ik(&pose, &ik_joints, &joints, IK_MODE_POSITION_ONLY);
+    if(ret != ARM_SUCCESS) {
+        printf("IK failed: %d\r\n", ret);
+        return;
+    }
+
+    printf("IK Joints: ");
+    printf_float(ik_joints.joint_1); printf(" ");
+    printf_float(ik_joints.joint_2); printf(" ");
+    printf_float(ik_joints.joint_3); printf(" ");
+    printf_float(ik_joints.joint_4); printf(" ");
+    printf_float(ik_joints.joint_5); printf(" ");
+    printf_float(ik_joints.joint_6); printf("\r\n");
+
+    Pose verify_pose;
+    s_six_dof_fk(&ik_joints, &verify_pose);
+    printf("Position error: ");
+    printf_float(pose.position.x - verify_pose.position.x); printf(" ");
+    printf_float(pose.position.y - verify_pose.position.y); printf(" ");
+    printf_float(pose.position.z - verify_pose.position.z); printf("\r\n");
+
+    d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
+    d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
+    d_dm_set_pos_spd(0x03, ik_joints.joint_3, 1.57f);
+    d_dm_set_pos_spd(0x04, ik_joints.joint_4, 1.57f);
+    d_dm_set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
+    d_dm_set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
+
+    // printf("Starting IK tests...\r\n");
+    // SixDofJointAll all_joints = { 0 };
+    // ArmErrorCode ret = s_six_dof_all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
+    // if(ret != ARM_SUCCESS) {
+    //     printf("All IK failed: %d\r\n", ret);
+    //     return;
+    // }
+    // printf("Found %d IK solutions\r\n", all_joints.num_solutions);
+    // for(uint8_t i = 0; i < all_joints.num_solutions; i++) {
+    //     SixDofJoint* s = solution_select(&all_joints, i);
+    //     if(!s) continue;
+    //     printf("--------------------------------------------------\r\n");
+    //     printf("- Solution %d: ", i + 1);
+    //     printf_float(s->joint_1); printf(" ");
+    //     printf_float(s->joint_2); printf(" ");
+    //     printf_float(s->joint_3); printf(" ");
+    //     printf_float(s->joint_4); printf(" ");
+    //     printf_float(s->joint_5); printf(" ");
+    //     printf_float(s->joint_6); printf("\r\n");
+
+    //     Pose verify_pose;
+    //     s_six_dof_fk(s, &verify_pose);
+    //     printf("- Position Error: ");
+    //     printf_float(verify_pose.position.x - pose.position.x); printf(" ");
+    //     printf_float(verify_pose.position.y - pose.position.y); printf(" ");
+    //     printf_float(verify_pose.position.z - pose.position.z); printf("\r\n");
+    //     printf("--------------------------------------------------\r\n");
+    // }
+}

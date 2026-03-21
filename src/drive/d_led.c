@@ -1,6 +1,6 @@
 #include "d_led.h"
 
-#include "hal_data.h"
+#include "hal_data.h"   // IWYU pragma: keep
 #include "tools/simple_api.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //

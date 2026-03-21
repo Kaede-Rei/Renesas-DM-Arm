@@ -19,57 +19,57 @@ typedef enum {
     RING_BUF_ERR_IN_USE,
     RING_BUF_ERR_FULL,
     RING_BUF_ERR_EMPTY,
-} RingBufError_te;
+} RingBufError;
 
-typedef struct RingBuf_t RingBuf_t;
-struct RingBuf_t {
+typedef struct RingBuf RingBuf;
+struct RingBuf {
 /// public:
     /**
-     * @brief 向环形缓冲区写入数据
-     * @param self 指向 RingBuf_t 结构体的指针
+     * @brief 向环形缓冲区写入单个数据
+     * @param self 指向 RingBuf 结构体的指针
      * @param data 要写入的数据
-     * @return RingBufError_te 枚举类型，表示操作结果
+     * @return RingBufError 枚举类型，表示操作结果
      */
-    RingBufError_te(*write)(RingBuf_t* const self, const uint8_t data);
+    RingBufError(*write)(RingBuf* const self, const uint8_t data);
     /**
-     * @brief 从环形缓冲区读取数据
-     * @param self 指向 RingBuf_t 结构体的指针
+     * @brief 从环形缓冲区读取单个数据
+     * @param self 指向 RingBuf 结构体的指针
      * @param data 指向存储读取数据的变量的指针
-     * @return RingBufError_te 枚举类型，表示操作结果
+     * @return RingBufError 枚举类型，表示操作结果
      */
-    RingBufError_te(*read)(RingBuf_t* const self, uint8_t* const data);
+    RingBufError(*read)(RingBuf* const self, uint8_t* const data);
     /**
      * @brief 清空环形缓冲区
-     * @param self 指向 RingBuf_t 结构体的指针
-     * @return RingBufError_te 枚举类型，表示操作结果
+     * @param self 指向 RingBuf 结构体的指针
+     * @return RingBufError 枚举类型，表示操作结果
      */
-    RingBufError_te(*clear)(RingBuf_t* const self);
+    RingBufError(*clear)(RingBuf* const self);
 
     /**
      * @brief 检查环形缓冲区是否已满
-     * @param self 指向 RingBuf_t 结构体的指针
+     * @param self 指向 RingBuf 结构体的指针
      * @return 1 表示已满，0 表示未满，-1 表示错误
      */
-    int8_t(*is_full)(RingBuf_t* const self);
+    int8_t(*is_full)(RingBuf* const self);
     /**
      * @brief 检查环形缓冲区是否为空
-     * @param self 指向 RingBuf_t 结构体的指针
+     * @param self 指向 RingBuf 结构体的指针
      * @return 1 表示为空，0 表示非空，-1 表示错误
      */
-    int8_t(*is_empty)(RingBuf_t* const self);
+    int8_t(*is_empty)(RingBuf* const self);
 
     /**
      * @brief 获取环形缓冲区当前存储的数据量
-     * @param self 指向 RingBuf_t 结构体的指针
+     * @param self 指向 RingBuf 结构体的指针
      * @return 当前存储的数据量，-1 表示错误
      */
-    int16_t(*get_size)(RingBuf_t* const self);
+    int16_t(*get_size)(RingBuf* const self);
     /**
      * @brief 获取环形缓冲区的总容量
-     * @param self 指向 RingBuf_t 结构体的指针
+     * @param self 指向 RingBuf 结构体的指针
      * @return 环形缓冲区的总容量，-1 表示错误
      */
-    int16_t(*get_capacity)(RingBuf_t* const self);
+    int16_t(*get_capacity)(RingBuf* const self);
 
 /// private:
     // 缓冲区指针
@@ -92,6 +92,6 @@ struct RingBuf_t {
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-RingBufError_te RingBuf(RingBuf_t* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
+RingBufError RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
 
 #endif
