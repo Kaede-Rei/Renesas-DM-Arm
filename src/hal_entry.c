@@ -82,42 +82,12 @@ void hal_entry(void) {
     sys_init(&buf6, &buf7, &info);
 
     ms_t dm_update_task = 0;
-    ms_t comms_process_task = 0;
-    ms_t connect_retry_task = 0;
     DmMotorFeedback_t feedback;
-
-    bool is_connected = false;
-    uint8_t buffer[256];
 
     while(1) {
         if(s_nb_delay_ms(&dm_update_task, 10)) {
             d_dm_request_feedback(0x01);
             d_dm_update(&feedback);
-        }
-        if(!is_connected) {
-            if(s_nb_delay_ms(&connect_retry_task, 5000)) {
-                printf("正在尝试建立 TCP 连接...\r\n");
-                if(d_wifi_bt_connect(&info, 5000) == WIFI_BT_SUCCESS) {
-                    is_connected = true;
-                    printf("TCP 连接成功!\r\n");
-                }
-                else {
-                    printf("TCP 连接失败，5秒后重试。\r\n");
-                }
-            }
-        }
-        else {
-            if(s_nb_delay_ms(&comms_process_task, 100)) {
-                const char* msg = "Hello K230!";
-                if(d_wifi_bt_send(info, (uint8_t*)msg, (uint16_t)strlen(msg)) == WIFI_BT_SUCCESS) {
-                    printf("数据发送成功\r\n");
-                }
-                else is_connected = false;
-                if(d_wifi_bt_recv(info, buffer, sizeof(buffer), 1000) == WIFI_BT_SUCCESS) {
-                    printf("接收到数据: %s\r\n", buffer);
-                }
-                else is_connected = false;
-            }
         }
     }
 

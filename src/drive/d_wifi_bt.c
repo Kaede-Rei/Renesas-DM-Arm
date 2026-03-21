@@ -85,13 +85,13 @@ WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, uint32_t timeout_ms) 
         else s_delay_ms(1);
     }
 
-    info->socket_port = 0;
+    info->socket_id = 0;
     for(idx = 0; buf[idx] != '\r' && idx < sizeof(buf); ++idx) {
         if(buf[idx] >= '0' && buf[idx] <= '9') {
-            info->socket_port = (uint16_t)(info->socket_port * 10 + (buf[idx] - '0'));
+            info->socket_id = (uint16_t)(info->socket_id * 10 + (buf[idx] - '0'));
         }
     }
-    printf("IP:%s - SocketPort:%d\r\n", info->ip, info->socket_port);
+    printf("IP:%s - SocketPort:%d\r\n", info->ip, info->socket_id);
 
     return WIFI_BT_SUCCESS;
 }
@@ -99,7 +99,7 @@ WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, uint32_t timeout_ms) 
 WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info) {
     char cmd[128];
 
-    snprintf(cmd, sizeof(cmd), "AT+SKCLS=%d\r\n", info.socket_port);
+    snprintf(cmd, sizeof(cmd), "AT+SKCLS=%d\r\n", info.socket_id);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
     if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
@@ -109,7 +109,7 @@ WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info) {
 WifiBtErrorCode d_wifi_bt_send(WifiBtConnectInfo info, const uint8_t* data, uint16_t length) {
     char cmd[128];
 
-    snprintf(cmd, sizeof(cmd), "AT+SKSND=%d,%d", info.socket_port, length);
+    snprintf(cmd, sizeof(cmd), "AT+SKSND=%d,%d", info.socket_id, length);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
     if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
     d_uart_write(wifi_bt_config.uart, data, length);
@@ -118,44 +118,6 @@ WifiBtErrorCode d_wifi_bt_send(WifiBtConnectInfo info, const uint8_t* data, uint
     return WIFI_BT_SUCCESS;
 }
 
-WifiBtErrorCode d_wifi_bt_recv(WifiBtConnectInfo info, uint8_t* buffer, uint16_t max_length, uint32_t timeout_ms) {
-    char cmd[128];
-
-    snprintf(cmd, sizeof(cmd), "AT+SKRCV=%d,%d", info.socket_port, max_length);
-    if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK=", 4, 1000)) return WIFI_BT_ERROR;
-
-    uint8_t data[10];
-    uint8_t idx = 0;
-    for(uint8_t i = 0; i < sizeof(data) - 1; ++i) {
-        if(!wifi_bt_config.rx_buf->is_empty(wifi_bt_config.rx_buf)) {
-            wifi_bt_config.rx_buf->read(wifi_bt_config.rx_buf, &data[i]);
-            if(data[i] == '\r' || data[i] == '\n') {
-                data[i] = '\0';
-                ++idx;
-                if(idx == 4) break;
-            }
-        }
-        else s_delay_ms(1);
-    }
-    uint16_t length = (uint16_t)atoi((const char*)data);
-
-    idx = 0;
-    uint8_t ch;
-    ms_t start_time = d_systick_get_ms();
-    while(d_systick_get_ms() - start_time < timeout_ms && --length) {
-        if(!wifi_bt_config.rx_buf->is_empty(wifi_bt_config.rx_buf)) {
-            wifi_bt_config.rx_buf->read(wifi_bt_config.rx_buf, &ch);
-            buffer[idx++] = ch;
-            if(length == 0) break;
-            if(idx >= max_length) return WIFI_BT_ERROR;
-        }
-        else s_delay_ms(1);
-    }
-
-    buffer[idx] = '\0';
-    return WIFI_BT_SUCCESS;
-}
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 

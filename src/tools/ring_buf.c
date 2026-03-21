@@ -8,15 +8,23 @@
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-static RingBufError _write(RingBuf* const self, const uint8_t data);
-static RingBufError _read(RingBuf* const self, uint8_t* const data);
-static RingBufError _clear(RingBuf* const self);
+static RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data);
+static RingBufErrorCode _rb_read(RingBuf* const self, uint8_t* const data);
+static RingBufErrorCode _rb_clear(RingBuf* const self);
 
-static int8_t _is_full(RingBuf* const self);
-static int8_t _is_empty(RingBuf* const self);
+static int8_t _rb_is_full(RingBuf* const self);
+static int8_t _rb_is_empty(RingBuf* const self);
 
-static int16_t _get_size(RingBuf* const self);
-static int16_t _get_capacity(RingBuf* const self);
+static int _rb_get_size(RingBuf* const self);
+static int _rb_get_capacity(RingBuf* const self);
+
+static FrameParserErrorCode _fp_write_(FrameParser* const self, const uint8_t data);
+static FrameParserErrorCode _fp_process_(FrameParser* const self);
+static FrameParserErrorCode _fp_get_frame_(FrameParser* const self, uint8_t** const frame_buffer, uint16_t* const frame_length);
+static FrameParserErrorCode _fp_finish_(FrameParser* const self);
+static FrameParserErrorCode _fp_reset_(FrameParser* const self);
+
+static uint16_t crc16_update(uint16_t crc, uint8_t data);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
@@ -26,20 +34,20 @@ static int16_t _get_capacity(RingBuf* const self);
  * @param buf 指向用于存储数据的缓冲区的指针
  * @param capacity 缓冲区的容量
  * @param overwrite 是否允许覆盖旧数据，1 表示允许，0 表示不允许
- * @return RingBufError 枚举类型，表示操作结果
+ * @return RingBufErrorCode 枚举类型，表示操作结果
  */
-RingBufError RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite) {
+RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
     if(buf == NULL) return RING_BUF_ERR_NULL_PTR;
     if(capacity == 0) return RING_BUF_ERR_FULL;
 
-    self->write = _write;
-    self->read = _read;
-    self->clear = _clear;
-    self->is_full = _is_full;
-    self->is_empty = _is_empty;
-    self->get_size = _get_size;
-    self->get_capacity = _get_capacity;
+    self->write = _rb_write;
+    self->read = _rb_read;
+    self->clear = _rb_clear;
+    self->is_full = _rb_is_full;
+    self->is_empty = _rb_is_empty;
+    self->get_size = _rb_get_size;
+    self->get_capacity = _rb_get_capacity;
 
     self->_buf_ = buf;
     self->_size_ = 0;
@@ -51,7 +59,46 @@ RingBufError RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16
     self->_overwrite_ = overwrite;
     self->_using_ = 0;
 
-    return RING_BUF_OK;
+    return RING_BUF_SUCCESS;
+}
+
+/**
+ * @brief 帧解析器构造函数
+ * @param self 指向 FrameParser 结构体的指针
+ * @param ring_buf 指向用于存储输入数据的环形缓冲区的指针
+ * @param header 帧头标识，长度为 2 字节
+ * @param frame_buf 指向用于存储解析完成的帧数据的缓冲区的指针
+ * @param frame_buf_capacity 帧数据缓冲区的容量
+ * @return FrameParserErrorCode 枚举类型，表示操作结果
+ */
+FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t header[2], uint8_t* const frame_buf, const uint16_t frame_buf_capacity) {
+    if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(ring_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(header == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(frame_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(frame_buf_capacity == 0) return FRAME_PARSER_ERR_BUF_TOO_SMALL;
+
+    self->write = _fp_write_;
+    self->process = _fp_process_;
+    self->get_frame = _fp_get_frame_;
+    self->finish = _fp_finish_;
+    self->reset = _fp_reset_;
+
+    self->_ring_buf_ = ring_buf;
+    self->_state_ = STATE_IDLE;
+
+    self->_header_[0] = header[0];
+    self->_header_[1] = header[1];
+    self->_header_match_idx_ = 0;
+
+    self->_frame_buf_ = frame_buf;
+    self->_frame_buf_capacity_ = frame_buf_capacity;
+
+    self->_crc_accum_ = 0;
+    self->_received_crc_ = 0;
+
+    return FRAME_PARSER_SUCCESS;
+
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
@@ -60,9 +107,9 @@ RingBufError RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16
  * @brief 向环形缓冲区写入数据
  * @param self 指向 RingBuf 结构体的指针
  * @param data 要写入的数据
- * @return RingBufError 枚举类型，表示操作结果
+ * @return RingBufErrorCode 枚举类型，表示操作结果
  */
-RingBufError _write(RingBuf* const self, const uint8_t data) {
+RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
     if(self->_using_) return RING_BUF_ERR_IN_USE;
 
@@ -81,16 +128,16 @@ RingBufError _write(RingBuf* const self, const uint8_t data) {
     }
     self->_using_ = 0;
 
-    return RING_BUF_OK;
+    return RING_BUF_SUCCESS;
 }
 
 /**
  * @brief 从环形缓冲区读取数据
  * @param self 指向 RingBuf 结构体的指针
  * @param data 指向存储读取数据的变量的指针
- * @return RingBufError 枚举类型，表示操作结果
+ * @return RingBufErrorCode 枚举类型，表示操作结果
  */
-RingBufError _read(RingBuf* const self, uint8_t* const data) {
+RingBufErrorCode _rb_read(RingBuf* const self, uint8_t* const data) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
     if(data == NULL) return RING_BUF_ERR_NULL_PTR;
     if(self->_using_) return RING_BUF_ERR_IN_USE;
@@ -105,15 +152,15 @@ RingBufError _read(RingBuf* const self, uint8_t* const data) {
     self->_size_--;
     self->_using_ = 0;
 
-    return RING_BUF_OK;
+    return RING_BUF_SUCCESS;
 }
 
 /**
  * @brief 清空环形缓冲区
  * @param self 指向 RingBuf 结构体的指针
- * @return RingBufError 枚举类型，表示操作结果
+ * @return RingBufErrorCode 枚举类型，表示操作结果
  */
-RingBufError _clear(RingBuf* const self) {
+RingBufErrorCode _rb_clear(RingBuf* const self) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
     if(self->_using_) return RING_BUF_ERR_IN_USE;
 
@@ -123,7 +170,7 @@ RingBufError _clear(RingBuf* const self) {
     self->_read_idx_ = 0;
     self->_using_ = 0;
 
-    return RING_BUF_OK;
+    return RING_BUF_SUCCESS;
 }
 
 /**
@@ -131,7 +178,7 @@ RingBufError _clear(RingBuf* const self) {
  * @param self 指向 RingBuf 结构体的指针
  * @return 1 表示已满，0 表示未满，-1 表示错误
  */
-int8_t _is_full(RingBuf* const self) {
+int8_t _rb_is_full(RingBuf* const self) {
     if(self == NULL) return -1;
 
     return (self->_size_ >= self->_capacity_) ? 1 : 0;
@@ -142,7 +189,7 @@ int8_t _is_full(RingBuf* const self) {
  * @param self 指向 RingBuf 结构体的指针
  * @return 1 表示为空，0 表示非空，-1 表示错误
  */
-int8_t _is_empty(RingBuf* const self) {
+int8_t _rb_is_empty(RingBuf* const self) {
     if(self == NULL) return -1;
 
     return (self->_size_ == 0) ? 1 : 0;
@@ -153,10 +200,10 @@ int8_t _is_empty(RingBuf* const self) {
  * @param self 指向 RingBuf 结构体的指针
  * @return 当前存储的数据量，-1 表示错误
  */
-int16_t _get_size(RingBuf* const self) {
+int _rb_get_size(RingBuf* const self) {
     if(self == NULL) return -1;
 
-    return (int16_t)(self->_size_);
+    return (int)(self->_size_);
 }
 
 /**
@@ -164,8 +211,193 @@ int16_t _get_size(RingBuf* const self) {
  * @param self 指向 RingBuf 结构体的指针
  * @return 环形缓冲区的总容量，-1 表示错误
  */
-int16_t _get_capacity(RingBuf* const self) {
+int _rb_get_capacity(RingBuf* const self) {
     if(self == NULL) return -1;
 
-    return (int16_t)(self->_capacity_);
+    return (int)(self->_capacity_);
+}
+
+/**
+ * @brief 向帧解析器输入单个数据
+ * @param self 指向 FrameParser 结构体的指针
+ * @param data 要输入的数据
+ * @return FrameParserErrorCode 枚举类型，表示操作结果
+ */
+static FrameParserErrorCode _fp_write_(FrameParser* const self, const uint8_t data) {
+    if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+
+    switch(self->_ring_buf_->write(self->_ring_buf_, data)) {
+        case RING_BUF_SUCCESS:
+            break;
+        case RING_BUF_ERR_NULL_PTR:
+            return FRAME_PARSER_ERR_NULL_PTR;
+        case RING_BUF_ERR_FULL:
+            return FRAME_PARSER_ERR_BUFFER_FULL;
+        default:
+            return FRAME_PARSER_ERR_INVALID_STATE;
+    }
+
+    return FRAME_PARSER_SUCCESS;
+}
+
+/**
+ * @brief 处理帧解析器状态机
+ * @param self 指向 FrameParser 结构体的指针
+ * @return FrameParserErrorCode 枚举类型，表示操作结果
+ */
+static FrameParserErrorCode _fp_process_(FrameParser* const self) {
+    if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+
+    uint8_t byte;
+    while(self->_ring_buf_->read(self->_ring_buf_, &byte) == RING_BUF_SUCCESS) {
+        switch(self->_state_) {
+            case STATE_IDLE:
+                if(byte == self->_header_[0]) {
+                    self->_crc_accum_ = crc16_update(0xFFFFU, byte);
+                    self->_header_match_idx_ = 1;
+                    self->_state_ = STATE_HEADER_MATCHING;
+                }
+                break;
+            case STATE_HEADER_MATCHING:
+                if(byte == self->_header_[1]) {
+                    self->_crc_accum_ = crc16_update(self->_crc_accum_, byte);
+                    self->_header_match_idx_ = 0;
+                    self->_received_length_ = 0;
+                    self->_state_ = STATE_READ_LENGTH;
+                }
+                else if(byte == self->_header_[0]) {
+                    self->_crc_accum_ = crc16_update(0xFFFFU, byte);
+                }
+                else {
+                    self->_header_match_idx_ = 0;
+                    self->_state_ = STATE_IDLE;
+                }
+                break;
+            case STATE_READ_LENGTH:
+                self->_crc_accum_ = crc16_update(self->_crc_accum_, byte);
+                if(self->_received_length_ == 0) {
+                    self->_expected_length_ = (uint16_t)((uint16_t)byte << 8);
+                    self->_received_length_ = 1;
+                }
+                else {
+                    self->_expected_length_ |= (uint16_t)byte;
+                    self->_received_length_ = 0;
+
+                    if(self->_expected_length_ > self->_frame_buf_capacity_) {
+                        self->_state_ = STATE_IDLE;
+                        return FRAME_PARSER_ERR_LENGTH_EXCEED;
+                    }
+                    else if(self->_expected_length_ == 0) {
+                        self->_state_ = STATE_READ_CRC;
+                    }
+                    else {
+                        self->_state_ = STATE_READ_PAYLOAD;
+                    }
+                }
+                break;
+            case STATE_READ_PAYLOAD:
+                self->_crc_accum_ = crc16_update(self->_crc_accum_, byte);
+                self->_frame_buf_[self->_received_length_] = byte;
+                self->_received_length_++;
+
+                if(self->_received_length_ >= self->_expected_length_) {
+                    self->_received_length_ = 0;
+                    self->_received_crc_ = 0;
+                    self->_state_ = STATE_READ_CRC;
+                }
+                break;
+            case STATE_READ_CRC:
+                if(self->_received_length_ == 0) {
+                    self->_received_crc_ = (uint16_t)((uint16_t)byte << 8);
+                    self->_received_length_ = 1;
+                }
+                else {
+                    self->_received_crc_ |= (uint16_t)byte;
+                    self->_received_length_ = 0;
+
+                    if(self->_received_crc_ == self->_crc_accum_) {
+                        self->_state_ = STATE_FRAME_COMPLETE;
+                        return FRAME_PARSER_SUCCESS;
+                    }
+                    else {
+                        self->_state_ = STATE_IDLE;
+                        return FRAME_PARSER_ERR_CRC_MISMATCH;
+                    }
+                }
+                break;
+            case STATE_FRAME_COMPLETE:
+                return FRAME_PARSER_SUCCESS;
+
+            default:
+                return FRAME_PARSER_ERR_INVALID_STATE;
+        }
+    }
+
+    return FRAME_PARSER_SUCCESS;
+}
+
+/**
+ * @brief 获取解析完成的帧数据，仅在 process() 返回成功且状态为 STATE_FRAME_COMPLETE 时有效
+ * @param self 指向 FrameParser 结构体的指针
+ * @param frame_buffer 输出参数，指向存储帧数据的缓冲区指针
+ * @param frame_length 输出参数，指向存储帧数据长度的变量指针
+ * @return FrameParserErrorCode 枚举类型，表示操作结果
+ */
+static FrameParserErrorCode _fp_get_frame_(FrameParser* const self, uint8_t** const frame_buffer, uint16_t* const frame_length) {
+    if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(frame_buffer == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(frame_length == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(self->_state_ != STATE_FRAME_COMPLETE) return FRAME_PARSER_ERR_NO_FRAME;
+
+    *frame_buffer = self->_frame_buf_;
+    *frame_length = self->_expected_length_;
+
+    return FRAME_PARSER_SUCCESS;
+}
+
+/**
+ * @brief 标记当前帧已处理完毕，将状态机复位至空闲
+ * @param self 指向 FrameParser 结构体的指针
+ * @return FrameParserErrorCode 枚举类型，表示操作结果
+ */
+static FrameParserErrorCode _fp_finish_(FrameParser* const self) {
+    if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+
+    self->_state_ = STATE_IDLE;
+    self->_header_match_idx_ = 0;
+    self->_expected_length_ = 0;
+    self->_received_length_ = 0;
+    self->_crc_accum_ = 0;
+    self->_received_crc_ = 0;
+
+    return FRAME_PARSER_SUCCESS;
+}
+
+/**
+ * @brief 完全重置帧解析器，同时清空环形缓冲区
+ * @param self 指向 FrameParser 结构体的指针
+ * @return FrameParserErrorCode 枚举类型，表示操作结果
+ */
+static FrameParserErrorCode _fp_reset_(FrameParser* const self) {
+    if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+
+    self->_ring_buf_->clear(self->_ring_buf_);
+
+    return self->finish(self);
+}
+
+/**
+ * @brief CRC-16/CCITT 单字节更新
+ * @details 多项式: 0x1021，初始值: 0xFFFF，无输入/输出翻转，无最终异或
+ *          CRC 覆盖范围: 帧头 + 长度字段 + 有效载荷
+ * @param crc 当前 CRC 累加值
+ * @param data 待计算的字节
+ * @return 更新后的 CRC 值
+ */
+static uint16_t crc16_update(uint16_t crc, const uint8_t data) {
+    crc ^= (uint16_t)data << 8;
+    for(uint8_t i = 0; i < 8; i++) {
+        crc = (crc & 0x8000U) ? ((uint16_t)(crc << 1) ^ 0x1021U) : (uint16_t)(crc << 1);
+    }
+    return crc;
 }

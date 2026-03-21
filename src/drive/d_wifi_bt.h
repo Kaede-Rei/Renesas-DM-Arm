@@ -34,8 +34,10 @@ typedef struct {
     char ip[16];
     uint16_t remote_port;
     uint16_t local_port;
-    uint16_t socket_port;
+    uint16_t socket_id;
 } WifiBtConnectInfo;
+
+typedef void (*WifiBtRecvCallback)(uint8_t socket_id, const uint8_t* data, uint16_t length);
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
@@ -45,6 +47,7 @@ WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* password);
 WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, uint32_t timeout_ms);
 WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info);
 WifiBtErrorCode d_wifi_bt_send(WifiBtConnectInfo info, const uint8_t* data, uint16_t length);
-WifiBtErrorCode d_wifi_bt_recv(WifiBtConnectInfo info, uint8_t* buffer, uint16_t max_length, uint32_t timeout_ms);
+void d_wifi_bt_set_recv_callback(WifiBtRecvCallback cb);
+void d_wifi_bt_process(void);
 
 #endif
