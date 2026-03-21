@@ -1,6 +1,7 @@
 #include "ring_buf.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
@@ -66,15 +67,19 @@ RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const ui
  * @brief 帧解析器构造函数
  * @param self 指向 FrameParser 结构体的指针
  * @param ring_buf 指向用于存储输入数据的环形缓冲区的指针
- * @param header 帧头标识，长度为 2 字节
+ * @param header 帧头标识指针，用于帧头匹配
+ * @param header_length 帧头标识的长度，最小为 2 字节
  * @param frame_buf 指向用于存储解析完成的帧数据的缓冲区的指针
  * @param frame_buf_capacity 帧数据缓冲区的容量
+ * @param crc_enabled 是否启用 CRC 校验，true 表示启用，false 表示不启用
  * @return FrameParserErrorCode 枚举类型，表示操作结果
+ * @note 帧格式：[header][length_high][length_low][payload][crc_high][crc_low]，其中 crc 部分可选，由 crc_enabled 参数控制
  */
-FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t header[2], uint8_t* const frame_buf, const uint16_t frame_buf_capacity) {
+FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(ring_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(header == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(header_length < 2) return FRAME_PARSER_ERR_HEADER_TOO_SHORT;
     if(frame_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(frame_buf_capacity == 0) return FRAME_PARSER_ERR_BUF_TOO_SMALL;
 
@@ -87,13 +92,14 @@ FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const r
     self->_ring_buf_ = ring_buf;
     self->_state_ = STATE_IDLE;
 
-    self->_header_[0] = header[0];
-    self->_header_[1] = header[1];
+    self->_header_ = header;
+    self->_header_length_ = header_length;
     self->_header_match_idx_ = 0;
 
     self->_frame_buf_ = frame_buf;
-    self->_frame_buf_capacity_ = frame_buf_capacity;
+    self->_frame_buf_capacity_ = (uint16_t)(frame_buf_capacity - (crc_enabled ? 2 : 0));
 
+    self->_crc_enabled_ = crc_enabled;
     self->_crc_accum_ = 0;
     self->_received_crc_ = 0;
 
@@ -252,28 +258,30 @@ static FrameParserErrorCode _fp_process_(FrameParser* const self) {
     while(self->_ring_buf_->read(self->_ring_buf_, &byte) == RING_BUF_SUCCESS) {
         switch(self->_state_) {
             case STATE_IDLE:
+            {
                 if(byte == self->_header_[0]) {
                     self->_crc_accum_ = crc16_update(0xFFFFU, byte);
                     self->_header_match_idx_ = 1;
                     self->_state_ = STATE_HEADER_MATCHING;
                 }
                 break;
+            }
             case STATE_HEADER_MATCHING:
-                if(byte == self->_header_[1]) {
+            {
+                if(byte == self->_header_[self->_header_match_idx_]) {
                     self->_crc_accum_ = crc16_update(self->_crc_accum_, byte);
-                    self->_header_match_idx_ = 0;
-                    self->_received_length_ = 0;
-                    self->_state_ = STATE_READ_LENGTH;
-                }
-                else if(byte == self->_header_[0]) {
-                    self->_crc_accum_ = crc16_update(0xFFFFU, byte);
+                    ++self->_header_match_idx_;
+                    if(self->_header_match_idx_ >= self->_header_length_) self->_state_ = STATE_READ_LENGTH;
                 }
                 else {
-                    self->_header_match_idx_ = 0;
-                    self->_state_ = STATE_IDLE;
+                    self->_state_ = (byte == self->_header_[0]) ? STATE_HEADER_MATCHING : STATE_IDLE;
+                    self->_crc_accum_ = (byte == self->_header_[0]) ? crc16_update(0xFFFFU, byte) : 0;
+                    self->_header_match_idx_ = (byte == self->_header_[0]) ? 1 : 0;
                 }
                 break;
+            }
             case STATE_READ_LENGTH:
+            {
                 self->_crc_accum_ = crc16_update(self->_crc_accum_, byte);
                 if(self->_received_length_ == 0) {
                     self->_expected_length_ = (uint16_t)((uint16_t)byte << 8);
@@ -295,7 +303,9 @@ static FrameParserErrorCode _fp_process_(FrameParser* const self) {
                     }
                 }
                 break;
+            }
             case STATE_READ_PAYLOAD:
+            {
                 self->_crc_accum_ = crc16_update(self->_crc_accum_, byte);
                 self->_frame_buf_[self->_received_length_] = byte;
                 self->_received_length_++;
@@ -306,7 +316,13 @@ static FrameParserErrorCode _fp_process_(FrameParser* const self) {
                     self->_state_ = STATE_READ_CRC;
                 }
                 break;
+            }
             case STATE_READ_CRC:
+            {
+                if(self->_crc_enabled_ == false) {
+                    self->_state_ = STATE_FRAME_COMPLETE;
+                    return FRAME_PARSER_SUCCESS;
+                }
                 if(self->_received_length_ == 0) {
                     self->_received_crc_ = (uint16_t)((uint16_t)byte << 8);
                     self->_received_length_ = 1;
@@ -325,15 +341,19 @@ static FrameParserErrorCode _fp_process_(FrameParser* const self) {
                     }
                 }
                 break;
+            }
             case STATE_FRAME_COMPLETE:
+            {
                 return FRAME_PARSER_SUCCESS;
-
+            }
             default:
+            {
                 return FRAME_PARSER_ERR_INVALID_STATE;
+            }
         }
     }
 
-    return FRAME_PARSER_SUCCESS;
+    return FRAME_PARSER_PROCESSING;
 }
 
 /**

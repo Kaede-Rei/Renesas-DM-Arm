@@ -20,7 +20,7 @@
 // 服务层
 #include "service/s_delay.h"
 #include "service/s_fk_ik.h"
-#include "service/s_comms.h"
+// #include "service/s_comms.h"
 
 // 应用层
 
@@ -40,13 +40,13 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  * @brief 系统初始化函数
  * @note 该函数在 hal_entry() 中被调用，用于初始化系统资源和外设
  */
-void sys_init(RingBuf* uart6_rx_buf, RingBuf* uart7_rx_buf, WifiBtConnectInfo* info);
-void sys_init(RingBuf* uart6_rx_buf, RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
+void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info);
+void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     if(d_systick_init() != FSP_SUCCESS) while(1);
     s_delay_init(d_systick_get_ms, d_systick_is_timeout);
 
     d_uart_init(UART7, uart7_rx_buf);
-    d_wifi_bt_init(UART6, uart6_rx_buf, STA);
+    d_wifi_bt_init(UART6, STA, (const uint8_t*)"WEED:", 5);
     d_can_init();
 
     s_delay_ms(2000);
@@ -79,15 +79,66 @@ void hal_entry(void) {
     RingBufCreate(&buf7, uart7_buffer, sizeof(uart7_buffer), 1);
 
     WifiBtConnectInfo info;
-    sys_init(&buf6, &buf7, &info);
+    sys_init(&buf7, &info);
 
     ms_t dm_update_task = 0;
+    ms_t connect_retry_task = 0;
+    ms_t send_task = 0;
+    uint32_t send_count = 0;
+    bool is_connected = false;
     DmMotorFeedback_t feedback;
 
     while(1) {
         if(s_nb_delay_ms(&dm_update_task, 10)) {
             d_dm_request_feedback(0x01);
             d_dm_update(&feedback);
+        }
+        if(!is_connected) {
+            if(s_nb_delay_ms(&connect_retry_task, 5000)) {
+                printf("尝试连接...\r\n");
+                if(d_wifi_bt_connect(&info, 5000) == WIFI_BT_SUCCESS) {
+                    is_connected = true;
+                    send_count = 0;
+                    printf("连接成功!\r\n");
+                }
+                else {
+                    printf("连接失败，5 秒后重试。\r\n");
+                }
+            }
+            continue;
+        }
+        if(s_nb_delay_ms(&send_task, 1000)) {
+            // 手动封装帧：帧头(5) + 长度(2) + 载荷(10) = 17 字节
+            uint8_t frame[5 + 2 + 10] = { 0 };
+            uint8_t payload[10] = { 0 };
+            snprintf((char*)payload, sizeof(payload), "PING %04lu", (unsigned long)send_count);
+
+            memcpy(frame, "WEED:", 5);
+            frame[5] = 0x00;
+            frame[6] = 10;
+            memcpy(frame + 7, payload, 10);
+
+            if(d_wifi_bt_send_frame(info, frame, sizeof(frame)) == WIFI_BT_SUCCESS) {
+                printf("发送 [%lu]: %s\r\n", (unsigned long)send_count, (char*)payload);
+                send_count++;
+            }
+            else {
+                printf("发送失败，触发重连。\r\n");
+                d_wifi_bt_disconnect(info);
+                is_connected = false;
+            }
+        }
+
+        uint8_t* frame_buf = NULL;
+        uint16_t frame_len = 0;
+
+        if(d_wifi_bt_process(&frame_buf, &frame_len) == WIFI_BT_FRAME_READY) {
+            char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
+            uint16_t copy_len = (frame_len < WIFI_BT_FRAME_BUF_SIZE) ? frame_len : WIFI_BT_FRAME_BUF_SIZE;
+            memcpy(print_buf, frame_buf, copy_len);
+            print_buf[copy_len] = '\0';
+            printf("收到: %s\r\n", print_buf);
+            d_wifi_bt_finish_frame();
         }
     }
 

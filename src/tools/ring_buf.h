@@ -1,6 +1,7 @@
 #ifndef _ring_buf_h_
 #define _ring_buf_h_
 
+#include <stdbool.h>
 #include <stdint.h>
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
@@ -24,6 +25,8 @@ typedef enum {
 /**
  * @brief 帧解析器错误枚举类型
  * @param FRAME_PARSER_SUCCESS: 操作成功
+ * @param FRAME_PARSER_PROCESSING: 解析中，尚未完成
+ * @param FRAME_PARSER_ERR_HEADER_TOO_SHORT: 帧头过短错误
  * @param FRAME_PARSER_ERR_NULL_PTR: 指针为 NULL 错误
  * @param FRAME_PARSER_ERR_INVALID_STATE: 无效状态错误
  * @param FRAME_PARSER_ERR_BUFFER_FULL: 缓冲区已满错误
@@ -33,6 +36,8 @@ typedef enum {
  */
 typedef enum {
     FRAME_PARSER_SUCCESS = 0,
+    FRAME_PARSER_PROCESSING,
+    FRAME_PARSER_ERR_HEADER_TOO_SHORT,
     FRAME_PARSER_ERR_NULL_PTR,
     FRAME_PARSER_ERR_BUF_TOO_SMALL,
     FRAME_PARSER_ERR_INVALID_STATE,
@@ -185,7 +190,9 @@ struct FrameParser {
     FrameParserState _state_;
 
     // 帧头
-    uint8_t _header_[2];
+    const uint8_t* _header_;
+    // 帧头长度，最小为 2 字节
+    uint8_t _header_length_;
     // 帧头匹配索引
     uint8_t _header_match_idx_;
 
@@ -199,6 +206,8 @@ struct FrameParser {
     // 帧数据缓冲区总容量
     uint16_t _frame_buf_capacity_;
 
+    // 是否启用 CRC 校验
+    bool _crc_enabled_;
     // CRC 校验累加器
     uint16_t _crc_accum_;
     // 已接收的 CRC 校验值
@@ -208,6 +217,6 @@ struct FrameParser {
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
 RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
-FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t header[2], uint8_t* const frame_buf, const uint16_t frame_buf_capacity);
+FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled);
 
 #endif
