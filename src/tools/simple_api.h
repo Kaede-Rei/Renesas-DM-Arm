@@ -2,6 +2,8 @@
 #define _simple_api_h_
 
 #include <stdio.h>
+#include <stdint.h>
+#include <string.h>
 
 // ! ========================= GPIO / IOPORT 简 化 宏 ========================= ! //
 
@@ -9,7 +11,7 @@
  * @brief 打印单精度浮点数，保留3位小数
  * @param val 要打印的单精度浮点数
  */
-static inline void printf_float(float val) {
+static inline void print_float(float val) {
     if(val < 0) {
         printf("-");
         val = -val;
@@ -30,7 +32,7 @@ static inline void printf_float(float val) {
  * @brief 打印双精度浮点数，保留9位小数
  * @param val 要打印的双精度浮点数
  */
-static inline void printf_double(double val) {
+static inline void print_double(double val) {
     if(val < 0) {
         printf("-");
         val = -val;
@@ -45,6 +47,19 @@ static inline void printf_double(double val) {
     }
 
     printf("%llu.%09llu", int_part, frac_part);
+}
+
+/**
+ * @brief 打印字节数组，以十六进制格式输出
+ * @param data 指向要打印的字节数组的指针
+ * @param length 要打印的字节数
+ */
+static inline void print_frame(const uint8_t* frame, uint16_t length) {
+    char print_buf[length + 1];
+
+    memcpy(print_buf, frame, length);
+    print_buf[length] = '\0';
+    printf("%s", print_buf);
 }
 
 /**

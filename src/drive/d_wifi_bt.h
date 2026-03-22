@@ -55,7 +55,7 @@ WifiBtErrorCode d_wifi_bt_send_cmd(const char* cmd);
 WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* password);
 WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password);
 WifiBtErrorCode d_wifi_bt_check_ap(void);
-WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, ms_t timeout_ms);
+WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info);
 WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info);
 WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode);
 

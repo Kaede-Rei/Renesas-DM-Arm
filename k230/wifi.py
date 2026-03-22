@@ -4,7 +4,7 @@ import struct
 import time
 
 
-class FrameTCPServer:
+class FrameServer:
     def __init__(self, ssid='K230', key='12345678', frame_header=b'WEED:', max_payload=512):
         """
         Args:
@@ -36,7 +36,7 @@ class FrameTCPServer:
 
     def start(self, ip='192.168.169.1', port=8080):
         """
-        启动 WiFi AP 和 TCP 服务器
+        启动 WiFi AP 和 UDP 服务器
 
         Args:
             ip (str): 服务器 IP 地址，默认 '192.168.169.1'
@@ -45,16 +45,15 @@ class FrameTCPServer:
         self.ap = network.WLAN(network.AP_IF)
         self.ap.active(True)
         self.ap.config(ssid=self.ssid, key=self.key)
-
         while not self.ap.active():
             time.sleep(0.1)
         print('AP 已激活:', self.ap.ifconfig()[0])
 
-        self.srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.srv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.srv.bind((ip, port))
-        self.srv.listen(1)
-        self.srv.setblocking(None)
+        self.srv.setblocking(False)
+        self.client_addr = None
         print('Server 已启动')
 
     def is_connected(self):
@@ -64,15 +63,17 @@ class FrameTCPServer:
         Returns:
             bool: True 如果有客户端连接，否则 False
         """
-        return self.socket is not None
+        return self.client_addr is not None
 
     def process(self):
         """
         处理连接、接收数据并解析帧
         """
-        self._accept()
         self._recv()
         self._parse_frames()
+        frame = self.latest_frame
+        if frame == b'HEART':
+            self.send(b'ALIVE')
         self._send_flush()
 
     def recv(self):
@@ -96,7 +97,7 @@ class FrameTCPServer:
         Returns:
             bool: True 如果发送成功，否则 False
         """
-        if not self.socket:
+        if not self.client_addr:
             return False
 
         frame = self.frame_header + struct.pack('>H', len(payload)) + payload
@@ -104,64 +105,29 @@ class FrameTCPServer:
 
         return True
 
-    def _accept(self):
-        """
-        接受新的客户端连接
-        """
-        try:
-            new_sock, addr = self.srv.accept()
-            
-            if self.socket:
-                print('检测到新连接，强制关闭旧连接:', addr)
-                self._close()
-            
-            new_sock.setblocking(False)
-            self.socket = new_sock
-            self.last_recv_time = time.ticks_ms()
-            print('新客户端已连接:', addr)
-        except OSError as e:
-            if e.args[0] not in (11, 35):
-                print("Accept Error:", e)
-
     def _send_flush(self):
-        if not self.socket or not self.tx_buffer:
+        if not self.client_addr or not self.tx_buffer:
             return
-
-        now = time.ticks_ms()
-
-        if time.ticks_diff(now, self.last_send_time) < int(self.send_interval * 1000):
-            return
-
         try:
-            sent = self.socket.send(self.tx_buffer)
+            sent = self.srv.sendto(self.tx_buffer, self.client_addr)
             if sent > 0:
                 self.tx_buffer = self.tx_buffer[sent:]
-                self.last_send_time = now
         except OSError as e:
-            if e.args[0] != 11:
-                self._close()
+            if e.args[0] not in (11, 35):
+                print('Send error:', e)
 
     def _recv(self):
         """
         从客户端接收数据并存入接收缓冲区
         """
-        if not self.socket:
-            return
-
-        if self.last_recv_time > 0:
-            if time.ticks_diff(time.ticks_ms(), self.last_recv_time) > int(self.recv_timeout * 1000):
-                print('接收超时，对端可能已断开')
-                self._close()
-                return
-
         try:
-            data = self.socket.recv(256)
+            data, addr = self.srv.recvfrom(512)
             if data:
+                self.client_addr = addr
                 self.rx_buffer.extend(data)
-                self.last_recv_time = time.ticks_ms()
         except OSError as e:
-            if e.args[0] != 11:
-                self._close()
+            if e.args[0] not in (11, 35):
+                print('Recv error:', e)
 
     def _parse_frames(self):
         """
@@ -173,7 +139,8 @@ class FrameTCPServer:
             idx = buf.find(self.frame_header)
             if idx < 0:
                 if len(buf) > self.header_len:
-                    del buf[:-self.header_len]
+                    self.rx_buffer = self.rx_buffer[-self.header_len:]
+                    buf = self.rx_buffer
                 return
 
             if len(buf) < idx + self.header_len + 2:
@@ -184,7 +151,8 @@ class FrameTCPServer:
 
             if payload_len == 0 or payload_len > self.max_payload:
                 print('[WARN] 非法长度:', payload_len)
-                del buf[:start+2]
+                self.rx_buffer = self.rx_buffer[start+2:]
+                buf = self.rx_buffer
                 continue
 
             frame_end = start + 2 + payload_len
@@ -213,3 +181,4 @@ class FrameTCPServer:
         self.rx_buffer = bytearray()
         self.latest_frame = None
         self.last_recv_time = 0
+        self.client_addr = None

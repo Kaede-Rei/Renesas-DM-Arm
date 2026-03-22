@@ -49,18 +49,19 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     d_wifi_bt_init(UART6, STA, (const uint8_t*)"WEED:", 5);
     d_can_init();
 
-    s_delay_ms(5000);
+    s_delay_ms(2000);
     d_led_on();
     printf("System Init Complete!\r\n");
 
     info->ssid = "K230";
     info->password = "12345678";
-    info->protocol = TCP;
+    info->protocol = UDP;
     info->role = Client;
     strcpy(info->ip, "192.168.169.1");
     info->remote_port = 8080;
     info->local_port = 5000;
-    d_wifi_bt_join_ap(info->ssid, info->password);
+    if(d_wifi_bt_join_ap(info->ssid, info->password) != WIFI_BT_SUCCESS) printf("WiFi 连接失败!\r\n");
+    else printf("WiFi 连接成功!\r\n");
 
     // fk_ik_test();
 }
@@ -92,7 +93,7 @@ void hal_entry(void) {
             d_dm_request_feedback(0x01);
             d_dm_update(&feedback);
         }
-        if(d_wifi_bt_heartbeat(&info, 1000) == WIFI_BT_SUCCESS) {
+        if(d_wifi_bt_heartbeat(&info, 500) == WIFI_BT_SUCCESS) {
             uint8_t* frame_buf = NULL;
             uint16_t frame_len = 0;
 
@@ -192,19 +193,19 @@ void fk_ik_test() {
     }
 
     printf("IK Joints: ");
-    printf_float(ik_joints.joint_1); printf(" ");
-    printf_float(ik_joints.joint_2); printf(" ");
-    printf_float(ik_joints.joint_3); printf(" ");
-    printf_float(ik_joints.joint_4); printf(" ");
-    printf_float(ik_joints.joint_5); printf(" ");
-    printf_float(ik_joints.joint_6); printf("\r\n");
+    print_float(ik_joints.joint_1); printf(" ");
+    print_float(ik_joints.joint_2); printf(" ");
+    print_float(ik_joints.joint_3); printf(" ");
+    print_float(ik_joints.joint_4); printf(" ");
+    print_float(ik_joints.joint_5); printf(" ");
+    print_float(ik_joints.joint_6); printf("\r\n");
 
     Pose verify_pose;
     s_six_dof_fk(&ik_joints, &verify_pose);
     printf("Position error: ");
-    printf_float(pose.position.x - verify_pose.position.x); printf(" ");
-    printf_float(pose.position.y - verify_pose.position.y); printf(" ");
-    printf_float(pose.position.z - verify_pose.position.z); printf("\r\n");
+    print_float(pose.position.x - verify_pose.position.x); printf(" ");
+    print_float(pose.position.y - verify_pose.position.y); printf(" ");
+    print_float(pose.position.z - verify_pose.position.z); printf("\r\n");
 
     d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
     d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
@@ -226,19 +227,19 @@ void fk_ik_test() {
     //     if(!s) continue;
     //     printf("--------------------------------------------------\r\n");
     //     printf("- Solution %d: ", i + 1);
-    //     printf_float(s->joint_1); printf(" ");
-    //     printf_float(s->joint_2); printf(" ");
-    //     printf_float(s->joint_3); printf(" ");
-    //     printf_float(s->joint_4); printf(" ");
-    //     printf_float(s->joint_5); printf(" ");
-    //     printf_float(s->joint_6); printf("\r\n");
+    //     print_float(s->joint_1); printf(" ");
+    //     print_float(s->joint_2); printf(" ");
+    //     print_float(s->joint_3); printf(" ");
+    //     print_float(s->joint_4); printf(" ");
+    //     print_float(s->joint_5); printf(" ");
+    //     print_float(s->joint_6); printf("\r\n");
 
     //     Pose verify_pose;
     //     s_six_dof_fk(s, &verify_pose);
     //     printf("- Position Error: ");
-    //     printf_float(verify_pose.position.x - pose.position.x); printf(" ");
-    //     printf_float(verify_pose.position.y - pose.position.y); printf(" ");
-    //     printf_float(verify_pose.position.z - pose.position.z); printf("\r\n");
+    //     print_float(verify_pose.position.x - pose.position.x); printf(" ");
+    //     print_float(verify_pose.position.y - pose.position.y); printf(" ");
+    //     print_float(verify_pose.position.z - pose.position.z); printf("\r\n");
     //     printf("--------------------------------------------------\r\n");
     // }
 }
