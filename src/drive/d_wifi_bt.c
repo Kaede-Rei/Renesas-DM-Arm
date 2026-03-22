@@ -3,6 +3,7 @@
 #include "service/s_delay.h"
 #include "drive/d_systick.h"
 #include "tools/ring_buf.h"
+#include "tools/simple_api.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -106,6 +107,40 @@ WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* pwd) {
 }
 
 /**
+ * @brief 重新加入 WiFi AP，即断开当前连接并尝试重新连接到指定的 WiFi 网络
+ * @param ssid WiFi 网络的 SSID，为 NULL 时表示使用上次连接的 SSID
+ * @param pwd WiFi 网络的密码，为 NULL 时表示使用上次连接的密码
+ * @return WifiBtErrorCode 枚举类型，表示操作结果
+ */
+WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password) {
+    uint8_t dummy;
+
+    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+
+    if(!(ssid && password)) {
+        wifi_bt_send_raw("AT+WJOIN\r\n");
+        if(!wifi_bt_wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
+    }
+    else d_wifi_bt_join_ap(ssid, password);
+
+    return WIFI_BT_SUCCESS;
+}
+
+/**
+ * @brief 查询 WiFi STA 连接状态（AT+LKSTT）
+ * @return WIFI_BT_SUCCESS 表示已连接，WIFI_BT_ERROR 表示未连接
+ */
+WifiBtErrorCode d_wifi_bt_check_ap(void) {
+    uint8_t dummy;
+    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+
+    wifi_bt_send_raw("AT+LKSTT\r\n");
+    return wifi_bt_wait_str("+OK=1", 5, 1000) ? WIFI_BT_SUCCESS : WIFI_BT_ERROR;
+}
+
+/**
  * @brief 处理 WiFi/BT 模块接收的数据，解析帧数据并检查是否有新的帧就绪
  * @param frame_buf 输出参数，指向存储帧数据的缓冲区指针
  * @param frame_len 输出参数，指向存储帧数据长度的变量指针
@@ -113,11 +148,15 @@ WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* pwd) {
  */
 WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, uint32_t timeout_ms) {
     char cmd[128];
+    uint8_t dummy;
+
+    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
 
     snprintf(cmd, sizeof(cmd), "AT+SKCT=%d,%d,\"%s\",%d,%d",
         info->protocol, info->role, info->ip, info->remote_port, info->local_port);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK=", 4, 1000)) return WIFI_BT_ERROR;
+    if(!wifi_bt_wait_str("+OK=", 4, 3000)) return WIFI_BT_ERROR;
 
     char buf[32] = { 0 };
     uint8_t idx = 0;
@@ -151,6 +190,32 @@ WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info) {
 
     snprintf(cmd, sizeof(cmd), "AT+SKCLS=%d", info.socket_port);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
+    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+
+    return WIFI_BT_SUCCESS;
+}
+
+/**
+ * @brief 复位 W800 模块并重新初始化（AT+Z）
+ * @param mode 工作模式
+ */
+WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode) {
+    uint8_t dummy;
+
+    gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_LOW);
+    s_delay_ms(100);
+    gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_HIGH);
+    s_delay_ms(500);
+
+    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+
+    char str[12];
+    snprintf(str, sizeof(str), "AT+WPRT=%d\r\n", mode);
+    wifi_bt_send_raw(str);
+    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+
+    wifi_bt_send_raw("AT+SKRPTM=1\r\n");
     if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_SUCCESS;

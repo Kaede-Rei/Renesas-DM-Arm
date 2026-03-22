@@ -53,12 +53,14 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     d_led_on();
     printf("System Init Complete!\r\n");
 
-    d_wifi_bt_join_ap("K230", "12345678");
+    info->ssid = "K230";
+    info->password = "12345678";
     info->protocol = TCP;
     info->role = Client;
     strcpy(info->ip, "192.168.169.1");
     info->remote_port = 8080;
     info->local_port = 5000;
+    d_wifi_bt_join_ap(info->ssid, info->password);
 
     // fk_ik_test();
 }
@@ -84,9 +86,12 @@ void hal_entry(void) {
     ms_t dm_update_task = 0;
     ms_t connect_retry_task = 0;
     ms_t send_task = 0;
+
+    DmMotorFeedback_t feedback;
+
     uint32_t send_count = 0;
     bool is_connected = false;
-    DmMotorFeedback_t feedback;
+    uint8_t retry_count = 0;
 
     while(1) {
         if(s_nb_delay_ms(&dm_update_task, 10)) {
@@ -94,15 +99,28 @@ void hal_entry(void) {
             d_dm_update(&feedback);
         }
         if(!is_connected) {
-            if(s_nb_delay_ms(&connect_retry_task, 5000)) {
-                printf("尝试连接...\r\n");
-                if(d_wifi_bt_connect(&info, 5000) == WIFI_BT_SUCCESS) {
+            if(s_nb_delay_ms(&connect_retry_task, 1000)) {
+                if(d_wifi_bt_check_ap() != WIFI_BT_SUCCESS) {
+                    printf("WiFi 未连接，尝试重连...\r\n");
+                    if(d_wifi_bt_rejoin_ap(NULL, NULL) != WIFI_BT_SUCCESS)
+                        printf("WiFi 重连失败，继续等待...\r\n");
+                    continue;
+                }
+
+                printf("尝试 TCP 连接... (retry=%d)\r\n", retry_count);
+                if(d_wifi_bt_connect(&info, 1000) == WIFI_BT_SUCCESS) {
                     is_connected = true;
                     send_count = 0;
+                    retry_count = 0;
                     printf("连接成功!\r\n");
                 }
+
+                else if(++retry_count < 3) printf("连接失败，1 秒后重试\r\n");
                 else {
-                    printf("连接失败，5 秒后重试。\r\n");
+                    printf("连接失败,重试次数过多,正在重置 WiFi 模块...\r\n");
+                    retry_count = 0;
+                    if(d_wifi_bt_reset(STA) == WIFI_BT_SUCCESS) d_wifi_bt_join_ap(info.ssid, info.password);
+                    else printf("模块重置失败\r\n");
                 }
             }
             continue;
@@ -123,7 +141,7 @@ void hal_entry(void) {
                 send_count++;
             }
             else {
-                printf("发送失败，触发重连。\r\n");
+                printf("发送失败，触发重连\r\n");
                 d_wifi_bt_disconnect(info);
                 is_connected = false;
             }

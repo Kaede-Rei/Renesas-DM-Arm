@@ -32,6 +32,9 @@ typedef enum {
 } LocalRole;
 
 typedef struct {
+    const char* ssid;
+    const char* password;
+
     NetworkProtocol protocol;
     LocalRole role;
     char ip[16];
@@ -48,8 +51,11 @@ typedef struct {
 WifiBtErrorCode d_wifi_bt_init(Uart_te uart, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len);
 WifiBtErrorCode d_wifi_bt_send_cmd(const char* cmd);
 WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* password);
+WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password);
+WifiBtErrorCode d_wifi_bt_check_ap(void);
 WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, uint32_t timeout_ms);
 WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info);
+WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode);
 
 WifiBtErrorCode d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len);
 WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* data, uint16_t length);

@@ -19,6 +19,7 @@
         <peripheral name="PORT5.CM33" group="PORT">
             <slot name="P505.CM33" secure="true"/>
             <slot name="P506.CM33" secure="true"/>
+            <slot name="P508.CM33" secure="true"/>
         </peripheral>
         <peripheral name="PORT6.CM33" group="PORT">
             <slot name="P613.CM33" secure="true"/>

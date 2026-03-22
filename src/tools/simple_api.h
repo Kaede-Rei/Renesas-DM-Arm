@@ -5,6 +5,10 @@
 
 // ! ========================= GPIO / IOPORT 简 化 宏 ========================= ! //
 
+/**
+ * @brief 打印单精度浮点数，保留3位小数
+ * @param val 要打印的单精度浮点数
+ */
 static inline void printf_float(float val) {
     if(val < 0) {
         printf("-");
@@ -22,6 +26,10 @@ static inline void printf_float(float val) {
     printf("%u.%03u", int_part, frac_part);
 }
 
+/**
+ * @brief 打印双精度浮点数，保留9位小数
+ * @param val 要打印的双精度浮点数
+ */
 static inline void printf_double(double val) {
     if(val < 0) {
         printf("-");

@@ -234,7 +234,7 @@ FSP Configuration
       P505 P6 SCI6_RXD6 - Low None "Peripheral mode" CMOS None "ADC1: AN121; AGT3: AGTOB3; ICU0: IRQ14; QSPI0: QIO3; SCI6: RXD6; SCI6: SCL6" - IO - - 
       P506 R5 SCI6_TXD6 - Low None "Peripheral mode" CMOS None "ADC1: AN122; ICU0: IRQ15; SCI6: SDA6; SCI6: TXD6" - IO - - 
       P507 N6 - - - - Disabled - - "ADC1: AN123; SCI5: SCK5; SCI6: SCK6" - None - - 
-      P508 R6 - - - - Disabled - - "ADC1: AN124; SCI5: CTSRTS5" - None - - 
+      P508 R6 GPIO - Low - "Output mode (Initial High)" CMOS - "ADC1: AN124; SCI5: CTSRTS5" - IO - - 
       P511 P13 - - - - Disabled - - "CAN1: CRX1; GPT0: GTIOC0B; ICU0: IRQ15; IIC1: SDA1; SCI4: RXD4; SCI4: SCL4" - None - - 
       P512 R14 - - - - Disabled - - "CAN1: CTX1; GPT0: GTIOC0A; ICU0: IRQ14; IIC1: SCL1; SCI4: SDA4; SCI4: TXD4" - None - - 
       P513 N12 - - - - Disabled - - "SCI5: RXD5; SCI5: SCL5" - None - - 

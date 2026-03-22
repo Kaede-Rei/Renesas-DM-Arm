@@ -71,6 +71,7 @@
       <configSetting altId="debug0.swdio.p108" configurationId="debug0.swdio" isUsedByDriver="true" peripheral="DEBUG0"/>
       <configSetting altId="p000.input" configurationId="p000"/>
       <configSetting altId="p400.output.high" configurationId="p400"/>
+      <configSetting altId="p508.output.high" configurationId="p508"/>
       <configSetting altId="sci6.rxd.p505" configurationId="sci6.rxd" isUsedByDriver="true" peripheral="SCI6"/>
       <configSetting altId="sci6.txd.p506" configurationId="sci6.txd" isUsedByDriver="true" peripheral="SCI6"/>
       <configSetting altId="sci7.rxd.p614" configurationId="sci7.rxd" isUsedByDriver="true" peripheral="SCI7"/>
