@@ -66,7 +66,7 @@ RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const ui
 /**
  * @brief 帧解析器构造函数
  * @param self 指向 FrameParser 结构体的指针
- * @param protocol_parser 指向用于存储输入数据的环形缓冲区的指针
+ * @param ring_buf 指向用于存储输入数据的环形缓冲区的指针
  * @param header 帧头标识指针，用于帧头匹配
  * @param header_length 帧头标识的长度，最小为 2 字节
  * @param frame_buf 指向用于存储解析完成的帧数据的缓冲区的指针
@@ -75,9 +75,9 @@ RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const ui
  * @return FrameParserErrorCode 枚举类型，表示操作结果
  * @note 帧格式：[header][length_high][length_low][payload][crc_high][crc_low]，其中 crc 部分可选，由 crc_enabled 参数控制
  */
-FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const protocol_parser, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled) {
+FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
-    if(protocol_parser == NULL) return FRAME_PARSER_ERR_NULL_PTR;
+    if(ring_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(header == NULL) return FRAME_PARSER_ERR_NULL_PTR;
     if(header_length < 2) return FRAME_PARSER_ERR_HEADER_TOO_SHORT;
     if(frame_buf == NULL) return FRAME_PARSER_ERR_NULL_PTR;
@@ -89,7 +89,7 @@ FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const p
     self->finish = _fp_finish_;
     self->reset = _fp_reset_;
 
-    self->_protocol_parser_ = protocol_parser;
+    self->_ring_buf_ = ring_buf;
     self->_state_ = STATE_IDLE;
 
     self->_header_ = header;
@@ -232,7 +232,7 @@ int _rb_get_capacity(RingBuf* const self) {
 static FrameParserErrorCode _fp_write_(FrameParser* const self, const uint8_t data) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
 
-    switch(self->_protocol_parser_->write(self->_protocol_parser_, data)) {
+    switch(self->_ring_buf_->write(self->_ring_buf_, data)) {
         case RING_BUF_SUCCESS:
             break;
         case RING_BUF_ERR_NULL_PTR:
@@ -255,7 +255,7 @@ static FrameParserErrorCode _fp_process_(FrameParser* const self) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
 
     uint8_t byte;
-    while(self->_protocol_parser_->read(self->_protocol_parser_, &byte) == RING_BUF_SUCCESS) {
+    while(self->_ring_buf_->read(self->_ring_buf_, &byte) == RING_BUF_SUCCESS) {
         switch(self->_state_) {
             case STATE_IDLE:
             {
@@ -401,7 +401,7 @@ static FrameParserErrorCode _fp_finish_(FrameParser* const self) {
 static FrameParserErrorCode _fp_reset_(FrameParser* const self) {
     if(self == NULL) return FRAME_PARSER_ERR_NULL_PTR;
 
-    self->_protocol_parser_->clear(self->_protocol_parser_);
+    self->_ring_buf_->clear(self->_ring_buf_);
 
     return self->finish(self);
 }
