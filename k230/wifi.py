@@ -3,182 +3,101 @@ import socket
 import struct
 import time
 
-
-class FrameServer:
-    def __init__(self, ssid='K230', key='12345678', frame_header=b'WEED:', max_payload=512):
-        """
-        Args:
-            ssid (str): WiFi SSID，默认 'K230'
-            key (str): WiFi 密码，默认 '12345678'
-            frame_header (bytes): 帧头标识，默认 b'WEED:'
-            max_payload (int): 最大有效载荷长度，默认 512 字节        
-        """
+class WifiServer:
+    def __init__(self, ssid='K230', key='12345678', header=b'WEED:', port=8080):
         self.ssid = ssid
         self.key = key
-
-        self.frame_header = frame_header
-        self.header_len = len(frame_header)
-        self.max_payload = max_payload
+        self.header = header
+        self.port = port
 
         self.ap = None
-        self.srv = None
-        self.socket = None
+        self.sock = None
+        self.client_addr = None
+        self.rx_buf = bytearray()
 
-        self.tx_buffer = bytearray()
-        self.rx_buffer = bytearray()
-        self.latest_frame = None
-
-        self.last_send_time = 0
-        self.send_interval = 0.02
-
-        self.last_recv_time = 0
-        self.recv_timeout = 10.0
-
-    def start(self, ip='192.168.169.1', port=8080):
-        """
-        启动 WiFi AP 和 UDP 服务器
-
-        Args:
-            ip (str): 服务器 IP 地址，默认 '192.168.169.1'
-            port (int): 服务器端口，默认 8080
-        """
+    def start(self, ip='192.168.169.1'):
         self.ap = network.WLAN(network.AP_IF)
         self.ap.active(True)
         self.ap.config(ssid=self.ssid, key=self.key)
         while not self.ap.active():
             time.sleep(0.1)
-        print('AP 已激活:', self.ap.ifconfig()[0])
+        print('AP 启动成功, IP:', self.ap.ifconfig()[0])
 
-        self.srv = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.srv.bind((ip, port))
-        self.srv.setblocking(False)
-        self.client_addr = None
-        print('Server 已启动')
-
-    def is_connected(self):
-        """
-        检查是否有客户端连接
-
-        Returns:
-            bool: True 如果有客户端连接，否则 False
-        """
-        return self.client_addr is not None
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind((ip, self.port))
+        self.sock.setblocking(False)
+        print(f'UDP Server 监听端口 {self.port}')
 
     def process(self):
-        """
-        处理连接、接收数据并解析帧
-        """
-        self._recv()
-        self._parse_frames()
-        frame = self.latest_frame
-        if frame == b'HEART':
-            self.send(b'ALIVE')
-        self._send_flush()
+        try:
+            while True:
+                data, addr = self.sock.recvfrom(1024)
+                if data:
+                    self.client_addr = addr
+                    self.rx_buf.extend(data)
+                else:
+                    break
+        except OSError:
+            pass
 
-    def recv(self):
-        """
-        接收解析后的帧数据
+        business_frames = []
+        while len(self.rx_buf) >= len(self.header) + 2:
+            idx = self.rx_buf.find(self.header)
+            if idx == -1:
+                if len(self.rx_buf) > len(self.header):
+                    self.rx_buf =  self.rx_buf[-len(self.header):]
+                break
 
-        Returns:
-            bytes: 帧数据，如果没有可用数据则返回 None
-        """
-        frame = self.latest_frame
-        self.latest_frame = None
+            if len(self.rx_buf) < idx + len(self.header) + 2:
+                break
 
-        return frame
+            start = idx + len(self.header)
+            payload_len = struct.unpack('>H', self.rx_buf[start:start+2])[0]
 
-    def send(self, payload):
-        """
-        发送帧数据
+            total_frame_len = len(self.header) + 2 + payload_len
+            if len(self.rx_buf) < idx + total_frame_len:
+                break
 
-        Args:
-            payload (bytes): 要发送的有效载荷数据
-        Returns:
-            bool: True 如果发送成功，否则 False
-        """
-        if not self.client_addr:
+            payload = self.rx_buf[start+2 : idx+total_frame_len]
+
+            if payload == b'HEART':
+                self.send(b'ALIVE')
+            else:
+                business_frames.append(payload)
+
+            self.rx_buf = self.rx_buf[idx+total_frame_len:]
+
+        return business_frames
+
+    def send(self, payload, target_addr=None):
+        addr = target_addr or self.client_addr
+        if not addr:
             return False
 
-        frame = self.frame_header + struct.pack('>H', len(payload)) + payload
-        self.tx_buffer.extend(frame)
-
-        return True
-
-    def _send_flush(self):
-        if not self.client_addr or not self.tx_buffer:
-            return
+        frame = self.header + struct.pack('>H', len(payload)) + payload
         try:
-            sent = self.srv.sendto(self.tx_buffer, self.client_addr)
-            if sent > 0:
-                self.tx_buffer = self.tx_buffer[sent:]
-        except OSError as e:
-            if e.args[0] not in (11, 35):
-                print('Send error:', e)
+            self.sock.sendto(frame, addr)
+            return True
+        except OSError:
+            return False
 
-    def _recv(self):
-        """
-        从客户端接收数据并存入接收缓冲区
-        """
-        try:
-            data, addr = self.srv.recvfrom(512)
-            if data:
-                self.client_addr = addr
-                self.rx_buffer.extend(data)
-        except OSError as e:
-            if e.args[0] not in (11, 35):
-                print('Recv error:', e)
+# 示例
+#
+# import wifi
+# import time
 
-    def _parse_frames(self):
-        """
-        从接收缓冲区解析完整帧并存入帧队列
-        """
-        buf = self.rx_buffer
+# if __name__ == "__main__":
+#     comms = wifi.WifiServer()
+#     comms.start()
 
-        while True:
-            idx = buf.find(self.frame_header)
-            if idx < 0:
-                if len(buf) > self.header_len:
-                    self.rx_buffer = self.rx_buffer[-self.header_len:]
-                    buf = self.rx_buffer
-                return
+#     last_send_time = time.ticks_ms()
 
-            if len(buf) < idx + self.header_len + 2:
-                return
+#     while True:
+#         frames = comms.process()
+#         for f in frames:
+#             print(f"[{time.time()}]收到 MCU 数据:{f}")
 
-            start = idx + self.header_len
-            payload_len = struct.unpack('>H', buf[start:start+2])[0]
-
-            if payload_len == 0 or payload_len > self.max_payload:
-                print('[WARN] 非法长度:', payload_len)
-                self.rx_buffer = self.rx_buffer[start+2:]
-                buf = self.rx_buffer
-                continue
-
-            frame_end = start + 2 + payload_len
-            if len(buf) < frame_end:
-                return
-
-            payload = bytes(buf[start+2:frame_end])
-            self.latest_frame = payload
-
-            self.rx_buffer = self.rx_buffer[frame_end:]
-            buf = self.rx_buffer
-
-    def _close(self):
-        """
-        关闭当前连接
-        """
-        if self.socket:
-            print('连接关闭')
-            try:
-                self.socket.close()
-            except:
-                pass
-            self.socket = None
-        
-        self.tx_buffer = bytearray()
-        self.rx_buffer = bytearray()
-        self.latest_frame = None
-        self.last_recv_time = 0
-        self.client_addr = None
+#         now = time.ticks_ms()
+#         if time.ticks_diff(now, last_send_time) >= 20:
+#             last_send_time = now
+#             comms.send(b'VISION_DATA')

@@ -3,6 +3,7 @@
 
 #include "service/s_delay.h"
 #include "d_uart.h"
+
 #include <stdint.h>
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
@@ -59,9 +60,13 @@ WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info);
 WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info);
 WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode);
 
+WifiBtErrorCode d_wifi_bt_enter_transparent(uint16_t socket_id);
+void d_wifi_bt_exit_transparent(void);
+
 WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms);
 WifiBtErrorCode d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len);
-WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* data, uint16_t length);
+WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, uint16_t length);
+WifiBtErrorCode d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t length);
 void d_wifi_bt_finish_frame(void);
 
 #endif

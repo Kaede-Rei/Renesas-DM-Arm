@@ -62,6 +62,8 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     info->local_port = 5000;
     if(d_wifi_bt_join_ap(info->ssid, info->password) != WIFI_BT_SUCCESS) printf("WiFi 连接失败!\r\n");
     else printf("WiFi 连接成功!\r\n");
+    d_wifi_bt_connect(info);
+    d_wifi_bt_enter_transparent(info->socket_port);
 
     // fk_ik_test();
 }
@@ -73,7 +75,7 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
 void hal_entry(void) {
     /* TODO: add your own code here */
 
-    uint8_t uart6_buffer[256];
+    uint8_t uart6_buffer[1024];
     RingBuf buf6;
     RingBufCreate(&buf6, uart6_buffer, sizeof(uart6_buffer), 1);
 
@@ -85,27 +87,39 @@ void hal_entry(void) {
     sys_init(&buf7, &info);
 
     ms_t dm_update_task = 0;
+    ms_t printf_task = 0;
 
     DmMotorFeedback_t feedback;
 
+    uint8_t* frame_buf = NULL;
+    uint16_t frame_len = 0;
+    uint16_t frame_fps = 0;
+
     while(1) {
-        if(s_nb_delay_ms(&dm_update_task, 10)) {
-            d_dm_request_feedback(0x01);
-            d_dm_update(&feedback);
+        WifiBtErrorCode net_status = d_wifi_bt_heartbeat(&info, 1000);
+
+        if(d_wifi_bt_process(&frame_buf, &frame_len) == WIFI_BT_FRAME_READY) {
+            d_wifi_bt_finish_frame();
+            ++frame_fps;
         }
-        if(d_wifi_bt_heartbeat(&info, 500) == WIFI_BT_SUCCESS) {
-            uint8_t* frame_buf = NULL;
-            uint16_t frame_len = 0;
 
-            if(d_wifi_bt_process(&frame_buf, &frame_len) == WIFI_BT_FRAME_READY) {
-                char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
-                uint16_t copy_len = (frame_len < WIFI_BT_FRAME_BUF_SIZE) ? frame_len : WIFI_BT_FRAME_BUF_SIZE;
+        if(s_nb_delay_ms(&printf_task, 1000)) {
+            char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
+            uint16_t copy_len = (frame_len < WIFI_BT_FRAME_BUF_SIZE) ? frame_len : WIFI_BT_FRAME_BUF_SIZE;
 
-                memcpy(print_buf, frame_buf, copy_len);
-                print_buf[copy_len] = '\0';
-                printf("收到: %s\r\n", print_buf);
+            memcpy(print_buf, frame_buf, copy_len);
+            print_buf[copy_len] = '\0';
+            printf("收到: %s，帧数: %lu\r\n", print_buf, (unsigned long)frame_fps);
 
-                d_wifi_bt_finish_frame();
+            d_wifi_bt_send(info, "GOOD", 4);
+
+            frame_fps = 0;
+        }
+
+        if(net_status == WIFI_BT_SUCCESS) {
+            if(s_nb_delay_ms(&dm_update_task, 10)) {
+                d_dm_request_feedback(0x01);
+                d_dm_update(&feedback);
             }
         }
     }
