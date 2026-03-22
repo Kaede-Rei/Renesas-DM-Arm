@@ -1,5 +1,5 @@
-#ifndef _ring_buf_h_
-#define _ring_buf_h_
+#ifndef _protocol_parser_h_
+#define _protocol_parser_h_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -185,7 +185,7 @@ struct FrameParser {
 /// private:
 
     // 指向关联的环形缓冲区的指针
-    RingBuf* _ring_buf_;
+    RingBuf* _protocol_parser_;
     // 帧解析器当前状态
     FrameParserState _state_;
 
@@ -217,6 +217,6 @@ struct FrameParser {
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
 RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const uint16_t capacity, const uint8_t overwrite);
-FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const ring_buf, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled);
+FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const protocol_parser, const uint8_t* const header, const uint8_t header_length, uint8_t* const frame_buf, const uint16_t frame_buf_capacity, const bool crc_enabled);
 
 #endif

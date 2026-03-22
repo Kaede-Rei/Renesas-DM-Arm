@@ -8,6 +8,16 @@
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
+/**
+ * @brief WiFi/BT 模块错误码
+ * @param WIFI_BT_SUCCESS 成功
+ * @param WIFI_BT_ERROR 错误
+ * @param WIFI_BT_WAIT_AP 等待连接 AP
+ * @param WIFI_BT_TIMEOUT 超时
+ * @param WIFI_BT_PROCESSING 处理中
+ * @param WIFI_BT_FRAME_READY 有帧可处理
+ * @param WIFI_BT_NO_FRAME 没有帧可处理
+ */
 typedef enum {
     WIFI_BT_SUCCESS = 0,
     WIFI_BT_ERROR,
@@ -18,22 +28,49 @@ typedef enum {
     WIFI_BT_NO_FRAME,
 } WifiBtErrorCode;
 
+/**
+ * @brief WiFi/BT 模块工作模式
+ * @param STA 站点模式
+ * @param SOFT_AP 软 AP 模式
+ * @param AP_STA AP + 站点模式
+ */
 typedef enum {
     STA = 0,
     SOFT_AP = 2,
     AP_STA = 3,
 } WifiBtWorkMode;
 
+/**
+ * @brief 网络协议类型
+ * @param TCP TCP 协议
+ * @param UDP UDP 协议
+ */
 typedef enum {
     TCP = 0,
     UDP = 1,
 } NetworkProtocol;
 
+/**
+ * @brief 本地角色
+ * @param Client 客户端
+ * @param Server 服务器
+ */
 typedef enum {
     Client = 0,
     Server = 1,
 } LocalRole;
 
+/**
+ * @brief WiFi/BT 连接信息结构体
+ * @param ssid WiFi SSID
+ * @param password WiFi 密码
+ * @param protocol 网络协议类型
+ * @param role 本地角色
+ * @param ip 远程 IP 地址
+ * @param remote_port 远程端口
+ * @param local_port 本地端口
+ * @param socket_port 套接字端口
+ */
 typedef struct {
     const char* ssid;
     const char* password;
@@ -46,7 +83,9 @@ typedef struct {
     uint16_t socket_port;
 } WifiBtConnectInfo;
 
+/// @brief WiFi/BT 模块帧缓冲区大小
 #define WIFI_BT_FRAME_RX_BUF_SIZE   512
+/// @brief WiFi/BT 模块帧发送缓冲区大小
 #define WIFI_BT_FRAME_BUF_SIZE      256
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //

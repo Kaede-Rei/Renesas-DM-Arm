@@ -3,7 +3,7 @@
 
 // 工具库
 #include "tools/simple_api.h"
-#include "tools/ring_buf.h"
+#include "tools/protocol_parser.h"
 
 // 标准库
 #include <stdint.h>
@@ -75,7 +75,7 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
 void hal_entry(void) {
     /* TODO: add your own code here */
 
-    uint8_t uart6_buffer[1024];
+    uint8_t uart6_buffer[256];
     RingBuf buf6;
     RingBufCreate(&buf6, uart6_buffer, sizeof(uart6_buffer), 1);
 

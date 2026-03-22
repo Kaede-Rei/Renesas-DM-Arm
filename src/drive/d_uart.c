@@ -1,7 +1,7 @@
 #include "d_uart.h"
 
 #include "hal_data.h"
-#include "tools/ring_buf.h"
+#include "tools/protocol_parser.h"
 
 #include <stdint.h>
 #include <stdio.h>
