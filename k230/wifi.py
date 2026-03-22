@@ -31,6 +31,9 @@ class FrameTCPServer:
         self.last_send_time = 0
         self.send_interval = 0.02
 
+        self.last_recv_time = 0
+        self.recv_timeout = 10.0
+
     def start(self, ip='192.168.169.1', port=8080):
         """
         启动 WiFi AP 和 TCP 服务器
@@ -114,6 +117,7 @@ class FrameTCPServer:
             
             new_sock.setblocking(False)
             self.socket = new_sock
+            self.last_recv_time = time.ticks_ms()
             print('新客户端已连接:', addr)
         except OSError as e:
             if e.args[0] not in (11, 35):
@@ -144,12 +148,17 @@ class FrameTCPServer:
         if not self.socket:
             return
 
+        if self.last_recv_time > 0:
+            if time.ticks_diff(time.ticks_ms(), self.last_recv_time) > int(self.recv_timeout * 1000):
+                print('接收超时，对端可能已断开')
+                self._close()
+                return
+
         try:
             data = self.socket.recv(256)
             if data:
                 self.rx_buffer.extend(data)
-            else:
-                pass
+                self.last_recv_time = time.ticks_ms()
         except OSError as e:
             if e.args[0] != 11:
                 self._close()
@@ -203,3 +212,4 @@ class FrameTCPServer:
         self.tx_buffer = bytearray()
         self.rx_buffer = bytearray()
         self.latest_frame = None
+        self.last_recv_time = 0

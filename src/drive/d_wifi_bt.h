@@ -1,6 +1,7 @@
 #ifndef _d_wifi_bt_h_
 #define _d_wifi_bt_h_
 
+#include "service/s_delay.h"
 #include "d_uart.h"
 #include <stdint.h>
 
@@ -9,6 +10,7 @@
 typedef enum {
     WIFI_BT_SUCCESS = 0,
     WIFI_BT_ERROR,
+    WIFI_BT_WAIT_AP,
     WIFI_BT_TIMEOUT,
     WIFI_BT_PROCESSING,
     WIFI_BT_FRAME_READY,
@@ -53,10 +55,11 @@ WifiBtErrorCode d_wifi_bt_send_cmd(const char* cmd);
 WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* password);
 WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password);
 WifiBtErrorCode d_wifi_bt_check_ap(void);
-WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, uint32_t timeout_ms);
+WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, ms_t timeout_ms);
 WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info);
 WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode);
 
+WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms);
 WifiBtErrorCode d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len);
 WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* data, uint16_t length);
 void d_wifi_bt_finish_frame(void);

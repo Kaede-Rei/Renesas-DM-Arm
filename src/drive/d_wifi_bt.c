@@ -1,6 +1,5 @@
 #include "d_wifi_bt.h"
 
-#include "service/s_delay.h"
 #include "drive/d_systick.h"
 #include "tools/ring_buf.h"
 #include "tools/simple_api.h"
@@ -101,7 +100,7 @@ WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* pwd) {
 
     snprintf(cmd, sizeof(cmd), "AT+WJOIN");
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
+    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_SUCCESS;
 }
@@ -120,7 +119,7 @@ WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password) {
 
     if(!(ssid && password)) {
         wifi_bt_send_raw("AT+WJOIN\r\n");
-        if(!wifi_bt_wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
+        if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
     }
     else d_wifi_bt_join_ap(ssid, password);
 
@@ -146,7 +145,7 @@ WifiBtErrorCode d_wifi_bt_check_ap(void) {
  * @param frame_len 输出参数，指向存储帧数据长度的变量指针
  * @return WifiBtErrorCode 枚举类型，表示操作结果
  */
-WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, uint32_t timeout_ms) {
+WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info, ms_t timeout_ms) {
     char cmd[128];
     uint8_t dummy;
 
@@ -219,6 +218,50 @@ WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode) {
     if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_SUCCESS;
+}
+
+WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
+    static bool is_connected = false;
+    static uint8_t retry_count = 0;
+    static ms_t start_time = 0;
+
+    if(s_nb_delay_ms(&start_time, timeout_ms)) {
+        if(!is_connected) {
+            if(d_wifi_bt_check_ap() != WIFI_BT_SUCCESS) {
+                printf("WiFi 未连接，尝试重连...\r\n");
+                if(d_wifi_bt_rejoin_ap(NULL, NULL) != WIFI_BT_SUCCESS)
+                    printf("WiFi 重连失败，继续等待...\r\n");
+                return WIFI_BT_WAIT_AP;
+            }
+
+            printf("尝试 TCP 连接... (retry=%d)\r\n", retry_count);
+            if(d_wifi_bt_connect(info, 1000) == WIFI_BT_SUCCESS) {
+                is_connected = true;
+                retry_count = 0;
+                printf("连接成功!\r\n");
+            }
+
+            else if(++retry_count < 3);
+            else {
+                printf("连接失败，重试次数过多，正在重置 WiFi 模块...\r\n");
+                retry_count = 0;
+                if(d_wifi_bt_reset(STA) == WIFI_BT_SUCCESS) d_wifi_bt_join_ap(info->ssid, info->password);
+                else printf("模块重置失败\r\n");
+            }
+        }
+
+        if(is_connected) {
+            uint8_t heart_frame[5 + 2 + 5] = { 'W', 'E', 'E', 'D', ':', 0x00, 0x05, 'H', 'E', 'A', 'R', 'T' };
+
+            if(d_wifi_bt_send_frame(*info, heart_frame, sizeof(heart_frame)) != WIFI_BT_SUCCESS) {
+                printf("发送失败，触发重连\r\n");
+                d_wifi_bt_disconnect(*info);
+                is_connected = false;
+            }
+        }
+    }
+
+    return is_connected ? WIFI_BT_SUCCESS : WIFI_BT_ERROR;
 }
 
 /**

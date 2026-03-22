@@ -49,7 +49,7 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     d_wifi_bt_init(UART6, STA, (const uint8_t*)"WEED:", 5);
     d_can_init();
 
-    s_delay_ms(2000);
+    s_delay_ms(5000);
     d_led_on();
     printf("System Init Complete!\r\n");
 
@@ -84,79 +84,28 @@ void hal_entry(void) {
     sys_init(&buf7, &info);
 
     ms_t dm_update_task = 0;
-    ms_t connect_retry_task = 0;
-    ms_t send_task = 0;
 
     DmMotorFeedback_t feedback;
-
-    uint32_t send_count = 0;
-    bool is_connected = false;
-    uint8_t retry_count = 0;
 
     while(1) {
         if(s_nb_delay_ms(&dm_update_task, 10)) {
             d_dm_request_feedback(0x01);
             d_dm_update(&feedback);
         }
-        if(!is_connected) {
-            if(s_nb_delay_ms(&connect_retry_task, 1000)) {
-                if(d_wifi_bt_check_ap() != WIFI_BT_SUCCESS) {
-                    printf("WiFi 未连接，尝试重连...\r\n");
-                    if(d_wifi_bt_rejoin_ap(NULL, NULL) != WIFI_BT_SUCCESS)
-                        printf("WiFi 重连失败，继续等待...\r\n");
-                    continue;
-                }
+        if(d_wifi_bt_heartbeat(&info, 1000) == WIFI_BT_SUCCESS) {
+            uint8_t* frame_buf = NULL;
+            uint16_t frame_len = 0;
 
-                printf("尝试 TCP 连接... (retry=%d)\r\n", retry_count);
-                if(d_wifi_bt_connect(&info, 1000) == WIFI_BT_SUCCESS) {
-                    is_connected = true;
-                    send_count = 0;
-                    retry_count = 0;
-                    printf("连接成功!\r\n");
-                }
+            if(d_wifi_bt_process(&frame_buf, &frame_len) == WIFI_BT_FRAME_READY) {
+                char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
+                uint16_t copy_len = (frame_len < WIFI_BT_FRAME_BUF_SIZE) ? frame_len : WIFI_BT_FRAME_BUF_SIZE;
 
-                else if(++retry_count < 3) printf("连接失败，1 秒后重试\r\n");
-                else {
-                    printf("连接失败,重试次数过多,正在重置 WiFi 模块...\r\n");
-                    retry_count = 0;
-                    if(d_wifi_bt_reset(STA) == WIFI_BT_SUCCESS) d_wifi_bt_join_ap(info.ssid, info.password);
-                    else printf("模块重置失败\r\n");
-                }
+                memcpy(print_buf, frame_buf, copy_len);
+                print_buf[copy_len] = '\0';
+                printf("收到: %s\r\n", print_buf);
+
+                d_wifi_bt_finish_frame();
             }
-            continue;
-        }
-        if(s_nb_delay_ms(&send_task, 1000)) {
-            // 手动封装帧：帧头(5) + 长度(2) + 载荷(10) = 17 字节
-            uint8_t frame[5 + 2 + 10] = { 0 };
-            uint8_t payload[10] = { 0 };
-            snprintf((char*)payload, sizeof(payload), "PING %04lu", (unsigned long)send_count);
-
-            memcpy(frame, "WEED:", 5);
-            frame[5] = 0x00;
-            frame[6] = 10;
-            memcpy(frame + 7, payload, 10);
-
-            if(d_wifi_bt_send_frame(info, frame, sizeof(frame)) == WIFI_BT_SUCCESS) {
-                printf("发送 [%lu]: %s\r\n", (unsigned long)send_count, (char*)payload);
-                send_count++;
-            }
-            else {
-                printf("发送失败，触发重连\r\n");
-                d_wifi_bt_disconnect(info);
-                is_connected = false;
-            }
-        }
-
-        uint8_t* frame_buf = NULL;
-        uint16_t frame_len = 0;
-
-        if(d_wifi_bt_process(&frame_buf, &frame_len) == WIFI_BT_FRAME_READY) {
-            char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
-            uint16_t copy_len = (frame_len < WIFI_BT_FRAME_BUF_SIZE) ? frame_len : WIFI_BT_FRAME_BUF_SIZE;
-            memcpy(print_buf, frame_buf, copy_len);
-            print_buf[copy_len] = '\0';
-            printf("收到: %s\r\n", print_buf);
-            d_wifi_bt_finish_frame();
         }
     }
 
