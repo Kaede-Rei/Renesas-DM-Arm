@@ -14,7 +14,19 @@ void protocol_parser_exit_critical() {
     __enable_irq();
 }
 
+
 // ! ========================= 变 量 声 明 ========================= ! //
+
+// 单例结构体实现
+const struct UartInterface d_uart_instance = {
+    .init = d_uart_init,
+    .write = d_uart_write,
+    .read = d_uart_read,
+    .wait_tx_complete = d_uart_wait_tx_complete,
+    .wait_rx_complete = d_uart_wait_rx_complete,
+    .is_tx_complete = d_uart_is_tx_complete,
+    .is_rx_complete = d_uart_is_rx_complete
+};
 
 typedef struct {
     Uart_te uart;
@@ -49,76 +61,77 @@ UartConfig_t uart7_config = {
 
 /**
  * @brief 初始化指定 UART 设备
- * @param uart 指定的 UART 设备（Uart_te 枚举类型）
+ * @param uart_instance 指定的 UART 设备（Uart_te 枚举类型）
  * @param rx_buffer 接收缓冲区指针
- * @return 无
+ * @return UartErrorCode_e 枚举类型，表示操作结果
  */
-void d_uart_init(Uart_te uart, RingBuf* rx_buf) {
-    switch(uart) {
+
+UartErrorCode_e d_uart_init(Uart_te uart_instance, RingBuf* rx_buf) {
+    switch(uart_instance) {
         case UART6:
             uart6_config.rx_buf = rx_buf;
             g_uart6.p_api->open(g_uart6.p_ctrl, g_uart6.p_cfg);
             g_uart6.p_api->read(g_uart6.p_ctrl, (uint8_t* const)&uart6_config.rx_byte, 1);
-            break;
+            return UART_SUCCESS;
         case UART7:
             uart7_config.rx_buf = rx_buf;
             g_uart7.p_api->open(g_uart7.p_ctrl, g_uart7.p_cfg);
             g_uart7.p_api->read(g_uart7.p_ctrl, (uint8_t* const)&uart7_config.rx_byte, 1);
-            break;
+            return UART_SUCCESS;
         default:
-            break;
+            return UART_ERROR;
     }
 }
 
 /**
  * @brief 等待指定 UART 发送完成
- * @param uart 指定的 UART 设备（Uart_te 枚举类型）
- * @return 无
+ * @param uart_instance 指定的 UART 设备（Uart_te 枚举类型）
+ * @return UartErrorCode_e 枚举类型，表示操作结果
  * @note 示例：d_uart_wait_tx_complete(UART7);
  */
-void d_uart_wait_tx_complete(Uart_te uart) {
-    switch(uart) {
+UartErrorCode_e d_uart_wait_tx_complete(Uart_te uart_instance) {
+    switch(uart_instance) {
         case UART6:
             while(!uart_complete_flags.tx_6);
             uart_complete_flags.tx_6 = 0;
-            break;
+            return UART_SUCCESS;
         case UART7:
             while(!uart_complete_flags.tx_7);
             uart_complete_flags.tx_7 = 0;
-            break;
+            return UART_SUCCESS;
         default:
-            break;
+            return UART_ERROR;
     }
 }
 
 /**
  * @brief 等待指定 UART 接收完成
- * @param uart 指定的 UART 设备（Uart_te 枚举类型）
- * @return 无
+ * @param uart_instance 指定的 UART 设备（Uart_te 枚举类型）
+ * @return UartErrorCode_e 枚举类型，表示操作结果
  * @note 示例：d_uart_wait_rx_complete(UART7);
  */
-void d_uart_wait_rx_complete(Uart_te uart) {
-    switch(uart) {
+UartErrorCode_e d_uart_wait_rx_complete(Uart_te uart_instance) {
+    switch(uart_instance) {
         case UART6:
             while(!uart_complete_flags.rx_6);
             uart_complete_flags.rx_6 = 0;
-            break;
+            return UART_SUCCESS;
         case UART7:
             while(!uart_complete_flags.rx_7);
             uart_complete_flags.rx_7 = 0;
-            break;
+            return UART_SUCCESS;
         default:
-            break;
+            return UART_ERROR;
     }
 }
 
 /**
  * @brief 判断指定 UART 是否发送完成
- * @param uart 指定的 UART 设备（Uart_te 枚举类型）
+ * @param uart_instance 指定的 UART 设备（Uart_te 枚举类型）
  * @return 布尔值，true 表示发送完成，false 表示未完成
  */
-bool d_uart_is_tx_complete(Uart_te uart) {
-    switch(uart) {
+bool d_uart_is_tx_complete(Uart_te uart_instance) {
+    switch(uart_instance) {
         case UART6:
             if(!uart_complete_flags.tx_6) return false;
             uart_complete_flags.tx_6 = 0;
@@ -134,11 +147,11 @@ bool d_uart_is_tx_complete(Uart_te uart) {
 
 /**
  * @brief 判断指定 UART 是否接收完成
- * @param uart 指定的 UART 设备（Uart_te 枚举类型）
+ * @param uart_instance 指定的 UART 设备（Uart_te 枚举类型）
  * @return 布尔值，true 表示接收完成，false 表示未完成
  */
-bool d_uart_is_rx_complete(Uart_te uart) {
-    switch(uart) {
+bool d_uart_is_rx_complete(Uart_te uart_instance) {
+    switch(uart_instance) {
         case UART6:
             if(!uart_complete_flags.rx_6) return false;
             uart_complete_flags.rx_6 = 0;
@@ -152,36 +165,50 @@ bool d_uart_is_rx_complete(Uart_te uart) {
     }
 }
 
-void d_uart_write(Uart_te uart, const uint8_t* data, uint16_t length) {
-    switch(uart) {
+/**
+ * @brief 向指定 UART 发送数据
+ * @param uart_instance 指定的 UART 设备（Uart_te 枚举类型）
+ * @param data 要发送的数据指针
+ * @param length 要发送的数据长度
+ * @return UartErrorCode_e 枚举类型，表示操作结果
+ */
+UartErrorCode_e d_uart_write(Uart_te uart_instance, const uint8_t* data, uint16_t length) {
+    switch(uart_instance) {
         case UART6:
             g_uart6.p_api->write(g_uart6.p_ctrl, data, length);
-            break;
+            return UART_SUCCESS;
         case UART7:
             g_uart7.p_api->write(g_uart7.p_ctrl, data, length);
-            break;
+            return UART_SUCCESS;
         default:
-            break;
+            return UART_ERROR;
     }
 }
 
-void d_uart_read(Uart_te uart, uint8_t* data, uint16_t length) {
+/**
+ * @brief 从指定 UART 接收数据
+ * @param uart_instance 指定的 UART 设备（Uart_te 枚举类型）
+ * @param data 存储接收数据的缓冲区指针
+ * @param length 要接收的数据长度
+ * @return UartErrorCode_e 枚举类型，表示操作结果
+ */
+UartErrorCode_e d_uart_read(Uart_te uart_instance, uint8_t* data, uint16_t length) {
     uint8_t* temp = data;
-    switch(uart) {
+    switch(uart_instance) {
         case UART6:
             while(length--) {
                 if(uart6_config.rx_buf->is_empty(uart6_config.rx_buf)) break;
                 uart6_config.rx_buf->read(uart6_config.rx_buf, temp++);
             }
-            break;
+            return UART_SUCCESS;
         case UART7:
             while(length--) {
                 if(uart7_config.rx_buf->is_empty(uart7_config.rx_buf)) break;
                 uart7_config.rx_buf->read(uart7_config.rx_buf, temp++);
             }
-            break;
+            return UART_SUCCESS;
         default:
-            break;
+            return UART_ERROR;
     }
 }
 

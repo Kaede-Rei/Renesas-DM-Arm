@@ -14,6 +14,7 @@
 #include "drive/d_led.h"
 #include "drive/d_uart.h"
 #include "drive/d_can.h"
+#include "drive/d_dm_motor.h"
 #include "drive/d_systick.h"
 #include "drive/d_wifi_bt.h"
 
@@ -45,20 +46,20 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     if(d_systick_init() != FSP_SUCCESS) while(1);
     s_delay_ms_init(d_systick_get_ms);
 
-    d_uart_init(UART7, uart7_rx_buf);
+    uart.init(UART7, uart7_rx_buf);
     d_wifi_bt_init(UART6, STA, (const uint8_t*)"RENE:", 5);
     can.init();
 
     s_delay_ms(2000);
-    d_led_on();
+    led.on();
     printf("System Init Complete!\r\n");
 
-    d_dm_enable(0x01);
-    d_dm_enable(0x02);
-    d_dm_enable(0x03);
-    d_dm_enable(0x04);
-    d_dm_enable(0x05);
-    d_dm_enable(0x06);
+    dm.enable(0x01);
+    dm.enable(0x02);
+    dm.enable(0x03);
+    dm.enable(0x04);
+    dm.enable(0x05);
+    dm.enable(0x06);
 
     info->ssid = "K230";
     info->password = "12345678";
@@ -197,17 +198,17 @@ void fk_ik_test(WifiBtConnectInfo* info) {
         .qmin = { -2.0944f, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
         .qmax = { 2.0944f, M_PI, 1.5f * M_PI, M_PI / 2, M_PI / 2, M_PI }
     };
-    s_six_dof_init(&mdh);
+    arm.init(&mdh);
 
     SixDofJoint joints = { 0.0f, 0.0f, 0.01f, 0.0f, 0.0f, 0.0f };
     Pose pose;
-    s_six_dof_fk(&joints, &pose);
+    arm.fk(&joints, &pose);
     pose.position.x = 0.1f;
     pose.position.y = 0.3f;
     pose.position.z = 0.2f;
 
     SixDofJoint ik_joints = { 0 };
-    ArmErrorCode ret = s_six_dof_ik(&pose, &ik_joints, &joints, IK_MODE_POSITION_ONLY);
+    ArmErrorCode ret = arm.ik(&pose, &ik_joints, &joints, IK_MODE_POSITION_ONLY);
     if(ret != ARM_SUCCESS) {
         printf("IK failed: %d\r\n", ret);
         return;
@@ -219,33 +220,33 @@ void fk_ik_test(WifiBtConnectInfo* info) {
     d_wifi_bt_send(*info, joint_buf, (uint16_t)len);
 
     Pose verify_pose;
-    s_six_dof_fk(&ik_joints, &verify_pose);
+    arm.fk(&ik_joints, &verify_pose);
     printf("Position error: %f %f %f\r\n", pose.position.x - verify_pose.position.x, pose.position.y - verify_pose.position.y, pose.position.z - verify_pose.position.z);
     len = snprintf(joint_buf, sizeof(joint_buf), "Position error: %f %f %f", pose.position.x - verify_pose.position.x, pose.position.y - verify_pose.position.y, pose.position.z - verify_pose.position.z);
     d_wifi_bt_send(*info, joint_buf, (uint16_t)len);
 
-    d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
-    d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
-    d_dm_set_pos_spd(0x03, ik_joints.joint_3, 1.57f);
-    d_dm_set_pos_spd(0x04, ik_joints.joint_4, 1.57f);
-    d_dm_set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
-    d_dm_set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
+    dm.set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
+    dm.set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
+    dm.set_pos_spd(0x03, ik_joints.joint_3, 1.57f);
+    dm.set_pos_spd(0x04, ik_joints.joint_4, 1.57f);
+    dm.set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
+    dm.set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
 
     printf("Starting IK tests...\r\n");
     SixDofJointAll all_joints = { 0 };
-    ret = s_six_dof_all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
+    ret = arm.all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
     if(ret != ARM_SUCCESS) {
         printf("All IK failed: %d\r\n", ret);
         return;
     }
     printf("Found %d IK solutions\r\n", all_joints.num_solutions);
     for(uint8_t i = 0; i < all_joints.num_solutions; i++) {
-        SixDofJoint* s = s_solution_select(&all_joints, i);
+        SixDofJoint* s = arm.solution_select(&all_joints, i);
         if(!s) continue;
         printf("--------------------------------------------------\r\n");
         printf("- Solution: %d, %f, %f, %f, %f, %f, %f\r\n", i + 1, s->joint_1, s->joint_2, s->joint_3, s->joint_4, s->joint_5, s->joint_6);
 
-        s_six_dof_fk(s, &verify_pose);
+        arm.fk(s, &verify_pose);
         printf("- Position Error: %f, %f, %f\r\n", verify_pose.position.x - pose.position.x, verify_pose.position.y - pose.position.y, verify_pose.position.z - pose.position.z);
         printf("--------------------------------------------------\r\n");
     }

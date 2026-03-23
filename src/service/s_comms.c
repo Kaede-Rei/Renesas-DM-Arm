@@ -3,9 +3,16 @@
 #include <string.h>
 #include <stdlib.h>
 
+
 // ! ========================= 变 量 声 明 ========================= ! //
 
 WeedData weed_comms = { 0 };
+
+// 单例结构体实现
+const struct CommsInterface s_comms_instance = {
+    .process_packet = s_comms_process_packet,
+    .get_weed_data = s_comms_get_weed_data
+};
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 

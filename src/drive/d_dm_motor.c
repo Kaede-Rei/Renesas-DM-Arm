@@ -10,7 +10,21 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-
+const struct DmMotorInterface d_dm_motor_instance = {
+    .enable = d_dm_enable,
+    .disable = d_dm_disable,
+    .set_mit = d_dm_set_mit,
+    .set_pos_spd = d_dm_set_pos_spd,
+    .set_spd = d_dm_set_spd,
+    .set_pos_spd_cur = d_dm_set_pos_spd_cur,
+    .get_feedback = d_dm_get_feedback,
+    .get_err_code = d_dm_get_err_code,
+    .get_pos = d_dm_get_pos,
+    .get_spd = d_dm_get_spd,
+    .get_torque = d_dm_get_torque,
+    .request_feedback = d_dm_request_feedback,
+    .update = d_dm_update
+};
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 

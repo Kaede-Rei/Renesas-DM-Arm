@@ -7,6 +7,11 @@
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
+ * @brief CAN 单例用户自定义名称
+ */
+#define can d_can_instance
+
+/**
  * @brief can0 写入数据的宏定义，简化函数调用
  * @param id CAN ID
  * @param data 要发送的数据
@@ -51,14 +56,43 @@ typedef enum {
  * @param write 写入数据函数指针
  * @param read 读取数据函数指针
  */
-extern const struct can_interface {
+extern const struct CanInterface {
+    /**
+     * @brief 初始化 CAN 模块
+     * @return CanErrorCode_e 枚举类型，表示操作结果
+     */
     CanErrorCode_e(*init)(void);
+    /**
+     * @brief 检查 CAN 发送是否完成
+     * @return CanErrorCode_e 枚举类型，表示操作结果
+     */
     CanErrorCode_e(*tx_complete)(void);
+    /**
+     * @brief 检查 CAN 接收是否完成
+     * @return CanErrorCode_e 枚举类型，表示操作结果
+     */
     CanErrorCode_e(*rx_complete)(void);
+    /**
+     * @brief 检查 CAN 是否忙碌
+     * @return CanErrorCode_e 枚举类型，表示操作结果
+     */
     CanErrorCode_e(*is_busy)(void);
+    /**
+     * @brief 向 CAN 发送数据帧
+     * @param can_instance 指向 CAN 实例的指针
+     * @param frame 指向要发送的 CAN 帧的指针
+     * @note 此函数使用 CAN 而非 CANFD
+     */
     CanErrorCode_e(*write)(can_instance_t* const can_instance, uint32_t id, uint8_t* data, uint8_t length);
+    /**
+     * @brief 从 CAN 接收数据帧
+     * @param can_instance 指向 CAN 实例的指针
+     * @param frame 指向存储接收数据的 CAN 帧结构体的指针
+     * @return CanErrorCode_e 枚举类型，表示操作结果
+     * @note 此函数使用 CAN 而非 CANFD
+     */
     CanErrorCode_e(*read)(can_instance_t* const can_instance, can_frame_t* const frame);
-} can;
+} d_can_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 

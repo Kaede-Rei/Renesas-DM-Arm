@@ -1,7 +1,7 @@
 #ifndef _d_systick_h_
 #define _d_systick_h_
 
-#include "hal_data.h"
+#include "hal_data.h"   // IWYU pragma: keep
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 

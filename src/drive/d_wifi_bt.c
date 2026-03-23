@@ -49,20 +49,20 @@ static bool wait_str(const char* expected, uint8_t length, uint32_t timeout_ms);
 
 /**
  * @brief WiFi/BT 模块初始化函数，配置 UART 端口、工作模式、帧解析器等
- * @param uart UART 端口枚举值，表示使用哪个 UART 进行通信
+ * @param uart_instance UART 端口枚举值，表示使用哪个 UART 进行通信
  * @param mode WiFi/BT 工作模式枚举值，表示模块的工作模式（如 STA、SOFT_AP 等）
  * @param header 帧头标识指针，用于帧头匹配
  * @param header_len 帧头标识的长度，最小为 2 字节
  * @return WifiBtErrorCode 枚举类型，表示操作结果
  */
-WifiBtErrorCode d_wifi_bt_init(Uart_te uart, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len) {
-    config.uart = uart;
+WifiBtErrorCode d_wifi_bt_init(Uart_te uart_instance, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len) {
+    config.uart = uart_instance;
     config.mode = mode;
     config.header = header;
     config.header_len = header_len;
 
     RingBufCreate(&config.rx_buf, config.rx_raw, WIFI_BT_FRAME_RX_BUF_SIZE, 1);
-    d_uart_init(uart, &config.rx_buf);
+    d_uart_init(uart_instance, &config.rx_buf);
 
     FrameParserCreate(&config.frame_parser, &config.rx_buf, header, header_len, config.frame_raw, WIFI_BT_FRAME_BUF_SIZE, false);
 

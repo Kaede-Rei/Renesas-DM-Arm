@@ -9,7 +9,16 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-const struct can_interface can = {
+/**
+ * @brief CAN 接口结构体实例，包含指向 CAN 操作函数的指针
+ * @param init 初始化函数指针
+ * @param tx_complete 发送完成检查函数指针
+ * @param rx_complete 接收完成检查函数指针
+ * @param is_busy 检查 CAN 是否忙碌的函数指针
+ * @param write 向 CAN 发送数据帧的函数指针
+ * @param read 从 CAN 接收数据帧的函数指针
+ */
+const struct CanInterface d_can_instance = {
     .init = d_can_init,
     .tx_complete = d_can_tx_complete,
     .rx_complete = d_can_rx_complete,

@@ -3,7 +3,13 @@
 
 #include <stdint.h>
 
+
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
+
+/**
+ * @brief 机械臂单例用户自定义名称
+ */
+#define arm s_fk_ik_instance
 
 /// @brief PI 常量
 #define M_PI 3.14159265358979323846f
@@ -159,6 +165,76 @@ typedef struct {
     SixDofJoint solution_7;
     SixDofJoint solution_8;
 } SixDofJointAll;
+
+/**
+ * @brief 机械臂单例接口
+ * @param six_dof_init 初始化机械臂参数的函数指针
+ * @param six_dof_fk 正运动学求解的函数指针
+ * @param six_dof_ik 逆运动学求解的函数指针
+ * @param six_dof_all_ik 全解逆运动学求解的函数指针
+ * @param solution_select 解选择函数指针
+ * @param rpy_to_quat RPY转四元数函数指针
+ * @param quat_to_rpy 四元数转RPY函数指针
+ */
+extern const struct FkIkInterface {
+    /**
+     * @brief 初始化机械臂的 MDH 参数
+     * @param mdh 机械臂的 MDH 参数
+     * @return ArmErrorCode 错误码
+     */
+    ArmErrorCode(*init)(const ArmMDH* mdh);
+
+    /**
+     * @brief 正运动学求解
+     * @param joints 关节角度
+     * @param pose 输出的末端位姿
+     * @return ArmErrorCode 错误码
+     */
+    ArmErrorCode(*fk)(const SixDofJoint* joints, Pose* pose);
+
+    /**
+     * @brief 逆运动学求解
+     * @param pose 目标末端位姿
+     * @param joints 输出的关节角度
+     * @param current_joints 当前关节角度
+     * @param mode IK 模式
+     * @return ArmErrorCode 错误码
+     */
+    ArmErrorCode(*ik)(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode);
+
+    /**
+     * @brief 全解逆运动学求解
+     * @param pose 目标末端位姿
+     * @param joints 输出的所有解
+     * @param mode IK 模式
+     * @return ArmErrorCode 错误码
+     */
+    ArmErrorCode(*all_ik)(const Pose* pose, SixDofJointAll* joints, IkMode mode);
+
+    /**
+     * @brief 选择解
+     * @param sols 解集
+     * @param idx 选择的解索引
+     * @return 指向选中解的指针
+     */
+    SixDofJoint* (*solution_select)(SixDofJointAll* sols, uint8_t idx);
+
+    /**
+     * @brief RPY 转四元数
+     * @param rpy RPY 结构体
+     * @param quat 输出的四元数指针
+     * @return ArmErrorCode 错误码
+     */
+    ArmErrorCode(*rpy_to_quat)(const RPY rpy, Quaternion* quat);
+
+    /**
+     * @brief 四元数转 RPY
+     * @param q 四元数
+     * @param rpy 输出的 RPY 指针
+     * @return ArmErrorCode 错误码
+     */
+    ArmErrorCode(*quat_to_rpy)(const Quaternion q, RPY* rpy);
+} s_fk_ik_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 

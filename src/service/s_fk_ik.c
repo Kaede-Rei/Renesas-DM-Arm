@@ -8,6 +8,16 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
+const struct FkIkInterface s_fk_ik_instance = {
+    .init = s_six_dof_init,
+    .fk = s_six_dof_fk,
+    .ik = s_six_dof_ik,
+    .all_ik = s_six_dof_all_ik,
+    .solution_select = s_solution_select,
+    .rpy_to_quat = s_rpy_to_quat,
+    .quat_to_rpy = s_quat_to_rpy
+};
+
 /// @brief 机械臂的 MDH 参数
 static ArmMDH arm_mdh = { 0 };
 
