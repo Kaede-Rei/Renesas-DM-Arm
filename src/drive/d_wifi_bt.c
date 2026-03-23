@@ -25,6 +25,7 @@
  */
 static struct {
     Uart_te uart;
+    WifiBtWorkMode mode;
     ms_t last_recv_time;
     bool is_transparent_mode;
 
@@ -37,12 +38,12 @@ static struct {
     uint8_t frame_raw[WIFI_BT_FRAME_BUF_SIZE];
     FrameParser frame_parser;
 
-} wifi_bt_config = { 0 };
+} config = { 0 };
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-static void wifi_bt_send_raw(const char* str);
-static bool wifi_bt_wait_str(const char* expected, uint8_t length, uint32_t timeout_ms);
+static void send_raw(const char* str);
+static bool wait_str(const char* expected, uint8_t length, uint32_t timeout_ms);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
@@ -55,14 +56,15 @@ static bool wifi_bt_wait_str(const char* expected, uint8_t length, uint32_t time
  * @return WifiBtErrorCode 枚举类型，表示操作结果
  */
 WifiBtErrorCode d_wifi_bt_init(Uart_te uart, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len) {
-    wifi_bt_config.uart = uart;
-    wifi_bt_config.header = header;
-    wifi_bt_config.header_len = header_len;
+    config.uart = uart;
+    config.mode = mode;
+    config.header = header;
+    config.header_len = header_len;
 
-    RingBufCreate(&wifi_bt_config.rx_buf, wifi_bt_config.rx_raw, WIFI_BT_FRAME_RX_BUF_SIZE, 1);
-    d_uart_init(uart, &wifi_bt_config.rx_buf);
+    RingBufCreate(&config.rx_buf, config.rx_raw, WIFI_BT_FRAME_RX_BUF_SIZE, 1);
+    d_uart_init(uart, &config.rx_buf);
 
-    FrameParserCreate(&wifi_bt_config.frame_parser, &wifi_bt_config.rx_buf, header, header_len, wifi_bt_config.frame_raw, WIFI_BT_FRAME_BUF_SIZE, false);
+    FrameParserCreate(&config.frame_parser, &config.rx_buf, header, header_len, config.frame_raw, WIFI_BT_FRAME_BUF_SIZE, false);
 
     gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_LOW);
     s_delay_ms(100);
@@ -71,11 +73,11 @@ WifiBtErrorCode d_wifi_bt_init(Uart_te uart, WifiBtWorkMode mode, const uint8_t*
 
     char str[12];
     snprintf(str, sizeof(str), "AT+WPRT=%d\r\n", mode);
-    wifi_bt_send_raw(str);
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    send_raw(str);
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
-    wifi_bt_send_raw("AT+SKRPTM=1\r\n");
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    send_raw("AT+SKRPTM=1\r\n");
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_SUCCESS;
 }
@@ -89,7 +91,7 @@ WifiBtErrorCode d_wifi_bt_send_cmd(const char* cmd) {
     char buf[64];
     snprintf(buf, sizeof(buf), "%s\r\n", cmd);
 
-    wifi_bt_send_raw(buf);
+    send_raw(buf);
 
     return WIFI_BT_SUCCESS;
 }
@@ -105,15 +107,15 @@ WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* pwd) {
 
     snprintf(cmd, sizeof(cmd), "AT+SSID=%s", ssid);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     snprintf(cmd, sizeof(cmd), "AT+KEY=1,0,%s", pwd);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     snprintf(cmd, sizeof(cmd), "AT+WJOIN");
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
+    if(!wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_SUCCESS;
 }
@@ -127,12 +129,12 @@ WifiBtErrorCode d_wifi_bt_join_ap(const char* ssid, const char* pwd) {
 WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password) {
     uint8_t dummy;
 
-    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
-    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+    while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    config.frame_parser.reset(&config.frame_parser);
 
     if(!(ssid && password)) {
-        wifi_bt_send_raw("AT+WJOIN\r\n");
-        if(!wifi_bt_wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
+        send_raw("AT+WJOIN\r\n");
+        if(!wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
     }
     else d_wifi_bt_join_ap(ssid, password);
 
@@ -145,11 +147,11 @@ WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password) {
  */
 WifiBtErrorCode d_wifi_bt_check_ap(void) {
     uint8_t dummy;
-    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
-    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+    while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    config.frame_parser.reset(&config.frame_parser);
 
-    wifi_bt_send_raw("AT+LKSTT\r\n");
-    return wifi_bt_wait_str("+OK=1", 5, 1000) ? WIFI_BT_SUCCESS : WIFI_BT_ERROR;
+    send_raw("AT+LKSTT\r\n");
+    return wait_str("+OK=1", 5, 1000) ? WIFI_BT_SUCCESS : WIFI_BT_ERROR;
 }
 
 /**
@@ -162,20 +164,20 @@ WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info) {
     char cmd[128];
     uint8_t dummy;
 
-    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
-    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+    while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    config.frame_parser.reset(&config.frame_parser);
 
     snprintf(cmd, sizeof(cmd), "AT+SKCT=%d,%d,\"%s\",%d,%d",
         info->protocol, info->role, info->ip, info->remote_port, info->local_port);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK=", 4, 3000)) return WIFI_BT_ERROR;
+    if(!wait_str("+OK=", 4, 3000)) return WIFI_BT_ERROR;
 
     char buf[32] = { 0 };
     uint8_t idx = 0;
     char ch;
     ms_t start_time = d_systick_get_ms();
     while(d_systick_get_ms() - start_time < 1000) {
-        if(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, (uint8_t*)&ch) == RING_BUF_SUCCESS) {
+        if(config.rx_buf.read(&config.rx_buf, (uint8_t*)&ch) == RING_BUF_SUCCESS) {
             if(ch == '\r' || ch == '\n') {
                 if(idx > 0)
                     break;
@@ -202,7 +204,7 @@ WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info) {
 
     snprintf(cmd, sizeof(cmd), "AT+SKCLS=%d", info.socket_port);
     if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_SUCCESS;
 }
@@ -219,16 +221,16 @@ WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode) {
     gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_HIGH);
     s_delay_ms(500);
 
-    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
-    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+    while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    config.frame_parser.reset(&config.frame_parser);
 
     char str[12];
     snprintf(str, sizeof(str), "AT+WPRT=%d\r\n", mode);
-    wifi_bt_send_raw(str);
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    send_raw(str);
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
-    wifi_bt_send_raw("AT+SKRPTM=1\r\n");
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    send_raw("AT+SKRPTM=1\r\n");
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_SUCCESS;
 }
@@ -241,20 +243,19 @@ WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode) {
 WifiBtErrorCode d_wifi_bt_enter_transparent(uint16_t socket_id) {
     char cmd[32];
     snprintf(cmd, sizeof(cmd), "AT+SKSDF=%d\r\n", socket_id);
-    wifi_bt_send_raw(cmd);
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    send_raw(cmd);
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
-    wifi_bt_send_raw("AT+ENTM\r\n");
-    if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+    send_raw("AT+ENTM\r\n");
+    if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
-    wifi_bt_config.is_transparent_mode = true;
-    s_delay_ms(50);
+    config.is_transparent_mode = true;
 
     uint8_t dummy;
-    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
-    wifi_bt_config.frame_parser.reset(&wifi_bt_config.frame_parser);
+    while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    config.frame_parser.reset(&config.frame_parser);
 
-    wifi_bt_config.last_recv_time = d_systick_get_ms();
+    config.last_recv_time = d_systick_get_ms();
     return WIFI_BT_SUCCESS;
 }
 
@@ -262,17 +263,17 @@ WifiBtErrorCode d_wifi_bt_enter_transparent(uint16_t socket_id) {
  * @brief 退出透传模式
  */
 void d_wifi_bt_exit_transparent(void) {
-    if(!wifi_bt_config.is_transparent_mode) return;
+    if(!config.is_transparent_mode) return;
 
     s_delay_ms(300);
-    d_uart_write(wifi_bt_config.uart, (uint8_t*)"+++", 3);
-    d_uart_wait_tx_complete(wifi_bt_config.uart);
+    d_uart_write(config.uart, (uint8_t*)"+++", 3);
+    d_uart_wait_tx_complete(config.uart);
     s_delay_ms(300);
 
-    wifi_bt_config.is_transparent_mode = false;
+    config.is_transparent_mode = false;
 
     uint8_t dummy;
-    while(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS);
+    while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
 }
 
 /**
@@ -282,16 +283,16 @@ void d_wifi_bt_exit_transparent(void) {
  * @return WifiBtErrorCode 枚举类型，表示操作结果
  */
 WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
-    static bool is_connected = true;
+    static bool is_connected = false;
     static ms_t last_heartbeat_tick = 0;
     ms_t now = d_systick_get_ms();
     static uint8_t retry_count = 0;
 
     if(is_connected && s_nb_delay_ms(&last_heartbeat_tick, timeout_ms)) {
-        uint8_t heart_frame[wifi_bt_config.header_len + 2 + 5];
-        uint16_t header_len = wifi_bt_config.header_len;
+        uint8_t heart_frame[config.header_len + 2 + 5];
+        uint16_t header_len = config.header_len;
 
-        memcpy(heart_frame, wifi_bt_config.header, header_len);
+        memcpy(heart_frame, config.header, header_len);
         heart_frame[header_len] = 0x00;
         heart_frame[header_len + 1] = 0x05;
         memcpy(heart_frame + header_len + 2, "HEART", 5);
@@ -299,7 +300,7 @@ WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
         d_wifi_bt_send_frame(*info, heart_frame, (uint16_t)(header_len + 2 + 5));
     }
 
-    if(is_connected && (now - wifi_bt_config.last_recv_time > timeout_ms * 3)) {
+    if(is_connected && (now - config.last_recv_time > timeout_ms * 5)) {
         printf("心跳超时，触发重连\r\n");
         is_connected = false;
     }
@@ -320,17 +321,18 @@ WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
             if(d_wifi_bt_enter_transparent(info->socket_port) == WIFI_BT_SUCCESS) {
                 is_connected = true;
                 retry_count = 0;
-                wifi_bt_config.last_recv_time = d_systick_get_ms();
+                config.last_recv_time = d_systick_get_ms();
                 printf("连接成功，进入透传模式\r\n");
             }
             else {
+                d_wifi_bt_disconnect(*info);
                 printf("进入透传模式失败，断开连接重试...\r\n");
             }
         }
         else {
             printf("连接失败，重置模块...\r\n");
             retry_count = 0;
-            if(d_wifi_bt_reset(STA) == WIFI_BT_SUCCESS)
+            if(d_wifi_bt_reset(config.mode) == WIFI_BT_SUCCESS)
                 d_wifi_bt_join_ap(info->ssid, info->password);
         }
     }
@@ -345,18 +347,28 @@ WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
  * @return WifiBtErrorCode 枚举类型，表示操作结果
  */
 WifiBtErrorCode d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len) {
-    if(wifi_bt_config.frame_parser.process(&wifi_bt_config.frame_parser) == FRAME_PARSER_PROCESSING) return WIFI_BT_PROCESSING;
-    if(wifi_bt_config.frame_parser.get_frame(&wifi_bt_config.frame_parser, frame_buf, frame_len) == FRAME_PARSER_SUCCESS) {
-        if(*frame_len == 5 && memcmp(*frame_buf, "ALIVE", 5) == 0) {
-            wifi_bt_config.last_recv_time = d_systick_get_ms();
-            wifi_bt_config.frame_parser.finish(&wifi_bt_config.frame_parser);
-            return WIFI_BT_NO_FRAME;
-        }
+    static uint8_t wifi_bt_stable_buf[WIFI_BT_FRAME_BUF_SIZE];
+    static uint16_t wifi_bt_stable_len = 0;
+    uint8_t* raw_buf;
+    uint16_t raw_len;
 
-        return WIFI_BT_FRAME_READY;
+    if(config.frame_parser.process(&config.frame_parser) == FRAME_PARSER_PROCESSING) return WIFI_BT_PROCESSING;
+    if(config.frame_parser.get_frame(&config.frame_parser, &raw_buf, &raw_len) != FRAME_PARSER_SUCCESS) return WIFI_BT_NO_FRAME;
+    config.frame_parser.finish(&config.frame_parser);
+
+    if(raw_len == 5 && memcmp(raw_buf, "ALIVE", 5) == 0) {
+        config.last_recv_time = d_systick_get_ms();
+        *frame_buf = NULL;
+        *frame_len = 0;
+        return WIFI_BT_NO_FRAME;
     }
 
-    return WIFI_BT_NO_FRAME;
+    wifi_bt_stable_len = (raw_len < WIFI_BT_FRAME_BUF_SIZE) ? raw_len : WIFI_BT_FRAME_BUF_SIZE;
+    memcpy(wifi_bt_stable_buf, raw_buf, wifi_bt_stable_len);
+    *frame_buf = wifi_bt_stable_buf;
+    *frame_len = wifi_bt_stable_len;
+
+    return WIFI_BT_FRAME_READY;
 }
 
 /**
@@ -367,9 +379,9 @@ WifiBtErrorCode d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const fra
  * @return WifiBtErrorCode 枚举类型，表示操作结果
  */
 WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, uint16_t length) {
-    if(wifi_bt_config.is_transparent_mode) {
-        d_uart_write(wifi_bt_config.uart, frame, length);
-        d_uart_wait_tx_complete(wifi_bt_config.uart);
+    if(config.is_transparent_mode) {
+        d_uart_write(config.uart, frame, length);
+        d_uart_wait_tx_complete(config.uart);
 
         return WIFI_BT_SUCCESS;
     }
@@ -377,17 +389,17 @@ WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* fram
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "AT+SKSND=%d,%d", info.socket_port, length);
         if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_SUCCESS) return WIFI_BT_ERROR;
-        if(!wifi_bt_wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
+        if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
         uint8_t dummy;
         ms_t last_byte_time = d_systick_get_ms();
         while(d_systick_get_ms() - last_byte_time < 50) {
-            if(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, &dummy) == RING_BUF_SUCCESS)
+            if(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS)
                 last_byte_time = d_systick_get_ms();
         }
 
-        d_uart_write(wifi_bt_config.uart, frame, length);
-        d_uart_wait_tx_complete(wifi_bt_config.uart);
+        d_uart_write(config.uart, frame, length);
+        d_uart_wait_tx_complete(config.uart);
 
         return WIFI_BT_SUCCESS;
     }
@@ -401,10 +413,10 @@ WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* fram
  * @return WifiBtErrorCode 枚举类型，表示操作结果
  */
 WifiBtErrorCode d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t length) {
-    uint8_t frame[wifi_bt_config.header_len + 2 + length];
-    uint16_t header_len = wifi_bt_config.header_len;
+    uint8_t frame[config.header_len + 2 + length];
+    uint16_t header_len = config.header_len;
 
-    memcpy(frame, wifi_bt_config.header, header_len);
+    memcpy(frame, config.header, header_len);
     frame[header_len] = (uint8_t)((length >> 8) & 0xFF);
     frame[header_len + 1] = (uint8_t)(length & 0xFF);
     memcpy(frame + header_len + 2, data, length);
@@ -416,22 +428,15 @@ WifiBtErrorCode d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_
     return d_wifi_bt_send_frame(info, (const uint8_t*)frame, (uint16_t)(header_len + 2 + length));
 }
 
-/**
- * @brief 标记当前帧已处理完毕，将状态机复位至空闲
- */
-void d_wifi_bt_finish_frame(void) {
-    wifi_bt_config.frame_parser.finish(&wifi_bt_config.frame_parser);
-}
-
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
 /**
  * @brief 向 WiFi/BT 模块发送原始字符串数据，通常用于发送 AT 命令
  * @param str 要发送的字符串数据
  */
-static void wifi_bt_send_raw(const char* str) {
-    d_uart_write(wifi_bt_config.uart, (uint8_t*)str, (uint16_t)strlen(str));
-    d_uart_wait_tx_complete(wifi_bt_config.uart);
+static void send_raw(const char* str) {
+    d_uart_write(config.uart, (uint8_t*)str, (uint16_t)strlen(str));
+    d_uart_wait_tx_complete(config.uart);
 }
 
 /**
@@ -441,13 +446,13 @@ static void wifi_bt_send_raw(const char* str) {
  * @param timeout_ms 等待响应的超时时间，单位为毫秒
  * @return true 表示在超时时间内成功接收到期望的字符串响应，false 表示超时未接收到或接收到其他数据
  */
-static bool wifi_bt_wait_str(const char* expected, uint8_t length, uint32_t timeout_ms) {
+static bool wait_str(const char* expected, uint8_t length, uint32_t timeout_ms) {
     int idx = 0;
     char ch;
     ms_t start_time = d_systick_get_ms();
 
     while(d_systick_get_ms() - start_time < timeout_ms) {
-        if(wifi_bt_config.rx_buf.read(&wifi_bt_config.rx_buf, (uint8_t*)&ch) == RING_BUF_SUCCESS) {
+        if(config.rx_buf.read(&config.rx_buf, (uint8_t*)&ch) == RING_BUF_SUCCESS) {
             if(ch == expected[idx]) {
                 if(++idx == length)
                     return true;

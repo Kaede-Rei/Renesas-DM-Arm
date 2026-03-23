@@ -4,7 +4,7 @@ import struct
 import time
 
 class WifiServer:
-    def __init__(self, ssid='K230', key='12345678', header=b'WEED:', port=8080):
+    def __init__(self, ssid='K230', key='12345678', header=b'RENE:', port=8080):
         self.ssid = ssid
         self.key = key
         self.header = header
@@ -14,6 +14,8 @@ class WifiServer:
         self.sock = None
         self.client_addr = None
         self.rx_buf = bytearray()
+
+        self.ready = False
 
     def start(self, ip='192.168.169.1'):
         self.ap = network.WLAN(network.AP_IF)
@@ -62,12 +64,13 @@ class WifiServer:
 
             if payload == b'HEART':
                 self.send(b'ALIVE')
+                self.ready = True
             else:
                 business_frames.append(payload)
 
             self.rx_buf = self.rx_buf[idx+total_frame_len:]
 
-        return business_frames
+        return business_frames, self.ready
 
     def send(self, payload, target_addr=None):
         addr = target_addr or self.client_addr
@@ -93,11 +96,12 @@ class WifiServer:
 #     last_send_time = time.ticks_ms()
 
 #     while True:
-#         frames = comms.process()
+#         frames, mcu_ready = comms.process()
 #         for f in frames:
 #             print(f"[{time.time()}]收到 MCU 数据:{f}")
+#             mcu_ready = True
 
 #         now = time.ticks_ms()
-#         if time.ticks_diff(now, last_send_time) >= 20:
+#         if mcu_ready and time.ticks_diff(now, last_send_time) >= 20:
 #             last_send_time = now
-#             comms.send(b'VISION_DATA')
+#             comms.send(b'VISION_DATA')s

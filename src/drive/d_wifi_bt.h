@@ -97,15 +97,13 @@ WifiBtErrorCode d_wifi_bt_rejoin_ap(const char* ssid, const char* password);
 WifiBtErrorCode d_wifi_bt_check_ap(void);
 WifiBtErrorCode d_wifi_bt_connect(WifiBtConnectInfo* info);
 WifiBtErrorCode d_wifi_bt_disconnect(WifiBtConnectInfo info);
-WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode);
-
 WifiBtErrorCode d_wifi_bt_enter_transparent(uint16_t socket_id);
 void d_wifi_bt_exit_transparent(void);
+WifiBtErrorCode d_wifi_bt_reset(WifiBtWorkMode mode);
 
 WifiBtErrorCode d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms);
 WifiBtErrorCode d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len);
 WifiBtErrorCode d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, uint16_t length);
 WifiBtErrorCode d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t length);
-void d_wifi_bt_finish_frame(void);
 
 #endif

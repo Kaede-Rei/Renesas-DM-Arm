@@ -46,12 +46,19 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     s_delay_init(d_systick_get_ms, d_systick_is_timeout);
 
     d_uart_init(UART7, uart7_rx_buf);
-    d_wifi_bt_init(UART6, STA, (const uint8_t*)"WEED:", 5);
+    d_wifi_bt_init(UART6, STA, (const uint8_t*)"RENE:", 5);
     d_can_init();
 
     s_delay_ms(2000);
     d_led_on();
     printf("System Init Complete!\r\n");
+
+    d_dm_enable(0x01);
+    d_dm_enable(0x02);
+    d_dm_enable(0x03);
+    d_dm_enable(0x04);
+    d_dm_enable(0x05);
+    d_dm_enable(0x06);
 
     info->ssid = "K230";
     info->password = "12345678";
@@ -62,11 +69,6 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     info->local_port = 5000;
     if(d_wifi_bt_join_ap(info->ssid, info->password) != WIFI_BT_SUCCESS) printf("WiFi 连接失败!\r\n");
     else printf("WiFi 连接成功!\r\n");
-
-    d_wifi_bt_connect(info);
-
-    if(d_wifi_bt_enter_transparent(info->socket_port) != WIFI_BT_SUCCESS) printf("进入透传模式失败!\r\n");
-    else printf("进入透传模式成功!\r\n");
 }
 
 /*******************************************************************************************************************//**
@@ -77,32 +79,50 @@ void hal_entry(void) {
     /* TODO: add your own code here */
 
     static uint8_t uart6_buffer[256];
-    RingBuf buf6;
+    static RingBuf buf6;
     RingBufCreate(&buf6, uart6_buffer, sizeof(uart6_buffer), 1);
 
     static uint8_t uart7_buffer[256];
-    RingBuf buf7;
+    static RingBuf buf7;
     RingBufCreate(&buf7, uart7_buffer, sizeof(uart7_buffer), 1);
 
-    WifiBtConnectInfo info;
+    static WifiBtConnectInfo info;
     sys_init(&buf7, &info);
 
-    ms_t dm_update_task = 0;
-    ms_t printf_task = 0;
+    static ms_t dm_update_task = 0;
+    static ms_t printf_task = 0;
 
-    DmMotorFeedback_t feedback;
+    static DmMotorFeedback_t feedback;
+    static bool dm_req_sent = false;
+    static uint16_t feedback_fps = 0;
 
-    uint8_t* frame_buf = NULL;
-    uint16_t frame_len = 0;
-    uint16_t frame_fps = 0;
+    static uint8_t* frame_buf = NULL;
+    static uint16_t frame_len = 0;
+    static uint16_t frame_fps = 0;
 
-    bool test = false;
+    static WifiBtErrorCode net_status = WIFI_BT_SUCCESS;
+    static bool test = false;
 
     while(1) {
-        WifiBtErrorCode net_status = d_wifi_bt_heartbeat(&info, 1000);
+        net_status = d_wifi_bt_heartbeat(&info, 2000);
+        if(net_status == WIFI_BT_SUCCESS) {
+            if(s_nb_delay_ms(&dm_update_task, 20)) {
+                d_dm_request_feedback(0x01);
+                dm_req_sent = true;
+            }
+            if(dm_req_sent) {
+                if(d_dm_update(&feedback) == DM_MOTOR_SUCCESS) {
+                    dm_req_sent = false;
+                    ++feedback_fps;
+                }
+            }
+            if(test == false) {
+                fk_ik_test(&info);
+                test = true;
+            }
+        }
 
         if(d_wifi_bt_process(&frame_buf, &frame_len) == WIFI_BT_FRAME_READY) {
-            d_wifi_bt_finish_frame();
             ++frame_fps;
         }
 
@@ -112,23 +132,11 @@ void hal_entry(void) {
 
             memcpy(print_buf, frame_buf, copy_len);
             print_buf[copy_len] = '\0';
-            printf("收到: %s，帧数: %lu\r\n", print_buf, (unsigned long)frame_fps);
-
-            d_wifi_bt_send(info, "GOOD", 4);
+            printf("收到: %s，帧数: %u\r\n", print_buf, frame_fps);
+            printf("反馈帧数: %u\r\n", feedback_fps);
 
             frame_fps = 0;
-        }
-
-        if(net_status == WIFI_BT_SUCCESS) {
-            if(s_nb_delay_ms(&dm_update_task, 10)) {
-                d_dm_request_feedback(0x01);
-                d_dm_update(&feedback);
-            }
-        }
-
-        if(test == false) {
-            fk_ik_test(&info);
-            test = true;
+            feedback_fps = 0;
         }
     }
 
@@ -176,16 +184,6 @@ FSP_CPP_FOOTER
 #endif
 
 void fk_ik_test(WifiBtConnectInfo* info) {
-    // 测试电机
-    d_dm_enable(0x01);
-    d_dm_enable(0x02);
-    d_dm_enable(0x03);
-    d_dm_enable(0x04);
-    d_dm_enable(0x05);
-    d_dm_enable(0x06);
-
-    // 测试 FK - IK
-    s_delay_ms(1000);
     float dx = 0.244004f;
     float dy = 0.059971f;
     float phi = atan2f(dy, dx);
@@ -233,32 +231,22 @@ void fk_ik_test(WifiBtConnectInfo* info) {
     d_dm_set_pos_spd(0x05, ik_joints.joint_5, 1.57f);
     d_dm_set_pos_spd(0x06, ik_joints.joint_6, 1.57f);
 
-    // printf("Starting IK tests...\r\n");
-    // SixDofJointAll all_joints = { 0 };
-    // ArmErrorCode ret = s_six_dof_all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
-    // if(ret != ARM_SUCCESS) {
-    //     printf("All IK failed: %d\r\n", ret);
-    //     return;
-    // }
-    // printf("Found %d IK solutions\r\n", all_joints.num_solutions);
-    // for(uint8_t i = 0; i < all_joints.num_solutions; i++) {
-    //     SixDofJoint* s = solution_select(&all_joints, i);
-    //     if(!s) continue;
-    //     printf("--------------------------------------------------\r\n");
-    //     printf("- Solution %d: ", i + 1);
-    //     print_float(s->joint_1); printf(" ");
-    //     print_float(s->joint_2); printf(" ");
-    //     print_float(s->joint_3); printf(" ");
-    //     print_float(s->joint_4); printf(" ");
-    //     print_float(s->joint_5); printf(" ");
-    //     print_float(s->joint_6); printf("\r\n");
+    printf("Starting IK tests...\r\n");
+    SixDofJointAll all_joints = { 0 };
+    ret = s_six_dof_all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
+    if(ret != ARM_SUCCESS) {
+        printf("All IK failed: %d\r\n", ret);
+        return;
+    }
+    printf("Found %d IK solutions\r\n", all_joints.num_solutions);
+    for(uint8_t i = 0; i < all_joints.num_solutions; i++) {
+        SixDofJoint* s = solution_select(&all_joints, i);
+        if(!s) continue;
+        printf("--------------------------------------------------\r\n");
+        printf("- Solution: %d, %f, %f, %f, %f, %f, %f\r\n", i + 1, s->joint_1, s->joint_2, s->joint_3, s->joint_4, s->joint_5, s->joint_6);
 
-    //     Pose verify_pose;
-    //     s_six_dof_fk(s, &verify_pose);
-    //     printf("- Position Error: ");
-    //     print_float(verify_pose.position.x - pose.position.x); printf(" ");
-    //     print_float(verify_pose.position.y - pose.position.y); printf(" ");
-    //     print_float(verify_pose.position.z - pose.position.z); printf("\r\n");
-    //     printf("--------------------------------------------------\r\n");
-    // }
+        s_six_dof_fk(s, &verify_pose);
+        printf("- Position Error: %f, %f, %f\r\n", verify_pose.position.x - pose.position.x, verify_pose.position.y - pose.position.y, verify_pose.position.z - pose.position.z);
+        printf("--------------------------------------------------\r\n");
+    }
 }

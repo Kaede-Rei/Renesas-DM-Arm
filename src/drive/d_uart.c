@@ -6,6 +6,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
+void protocol_parser_enter_critical() {
+    __disable_irq();
+}
+
+void protocol_parser_exit_critical() {
+    __enable_irq();
+}
+
 // ! ========================= 变 量 声 明 ========================= ! //
 
 typedef struct {

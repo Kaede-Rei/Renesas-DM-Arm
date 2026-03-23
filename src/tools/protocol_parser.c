@@ -58,7 +58,6 @@ RingBufErrorCode RingBufCreate(RingBuf* const self, uint8_t* const buf, const ui
     self->_read_idx_ = 0;
 
     self->_overwrite_ = overwrite;
-    self->_using_ = 0;
 
     return RING_BUF_SUCCESS;
 }
@@ -117,9 +116,9 @@ FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const r
  */
 RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
-    if(self->_using_) return RING_BUF_ERR_IN_USE;
 
-    self->_using_ = 1;
+    protocol_parser_enter_critical();
+
     if(self->_overwrite_) {
         self->_buf_[self->_write_idx_] = data;
         self->_write_idx_ = (uint16_t)((self->_write_idx_ + 1) % self->_capacity_);
@@ -132,7 +131,8 @@ RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data) {
         self->_write_idx_ = (uint16_t)((self->_write_idx_ + 1) % self->_capacity_);
         self->_size_++;
     }
-    self->_using_ = 0;
+
+    protocol_parser_exit_critical();
 
     return RING_BUF_SUCCESS;
 }
@@ -146,17 +146,15 @@ RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data) {
 RingBufErrorCode _rb_read(RingBuf* const self, uint8_t* const data) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
     if(data == NULL) return RING_BUF_ERR_NULL_PTR;
-    if(self->_using_) return RING_BUF_ERR_IN_USE;
+    if(self->is_empty(self)) return RING_BUF_ERR_EMPTY;
 
-    self->_using_ = 1;
-    if(self->is_empty(self)) {
-        self->_using_ = 0;
-        return RING_BUF_ERR_EMPTY;
-    }
+    protocol_parser_enter_critical();
+
     *data = self->_buf_[self->_read_idx_];
     self->_read_idx_ = (uint16_t)((self->_read_idx_ + 1) % self->_capacity_);
     self->_size_--;
-    self->_using_ = 0;
+
+    protocol_parser_exit_critical();
 
     return RING_BUF_SUCCESS;
 }
@@ -168,13 +166,14 @@ RingBufErrorCode _rb_read(RingBuf* const self, uint8_t* const data) {
  */
 RingBufErrorCode _rb_clear(RingBuf* const self) {
     if(self == NULL) return RING_BUF_ERR_NULL_PTR;
-    if(self->_using_) return RING_BUF_ERR_IN_USE;
 
-    self->_using_ = 1;
+    protocol_parser_enter_critical();
+
     self->_size_ = 0;
     self->_write_idx_ = 0;
     self->_read_idx_ = 0;
-    self->_using_ = 0;
+
+    protocol_parser_exit_critical();
 
     return RING_BUF_SUCCESS;
 }

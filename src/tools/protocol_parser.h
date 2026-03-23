@@ -4,6 +4,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/**
+ * @brief 原子性操作，需要用户自行实现
+ * @param protocol_parser_enter_critical 进入临界区，禁止中断或其他并发访问
+ * @param protocol_parser_exit_critical 退出临界区，恢复中断或其他
+ */
+void protocol_parser_enter_critical(void);
+void protocol_parser_exit_critical(void);
+
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
@@ -133,8 +141,6 @@ struct RingBuf {
 
     // 是否允许覆盖旧数据
     uint8_t _overwrite_;
-    // 是否正在使用中
-    uint8_t _using_;
 };
 
 /**
