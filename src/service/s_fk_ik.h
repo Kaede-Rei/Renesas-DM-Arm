@@ -166,9 +166,9 @@ ArmErrorCode s_six_dof_init(const ArmMDH* mdh);
 ArmErrorCode s_six_dof_fk(const SixDofJoint* joints, Pose* pose);
 ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode);
 ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode mode);
-SixDofJoint* solution_select(SixDofJointAll* sols, uint8_t idx);
+SixDofJoint* s_solution_select(SixDofJointAll* sols, uint8_t idx);
 
-Quaternion s_rpy_to_quat(const RPY rpy);
-RPY s_quat_to_rpy(const Quaternion q);
+ArmErrorCode s_rpy_to_quat(const RPY rpy, Quaternion* quat);
+ArmErrorCode s_quat_to_rpy(const Quaternion q, RPY* rpy);
 
 #endif

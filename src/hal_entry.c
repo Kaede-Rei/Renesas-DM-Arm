@@ -240,7 +240,7 @@ void fk_ik_test(WifiBtConnectInfo* info) {
     }
     printf("Found %d IK solutions\r\n", all_joints.num_solutions);
     for(uint8_t i = 0; i < all_joints.num_solutions; i++) {
-        SixDofJoint* s = solution_select(&all_joints, i);
+        SixDofJoint* s = s_solution_select(&all_joints, i);
         if(!s) continue;
         printf("--------------------------------------------------\r\n");
         printf("- Solution: %d, %f, %f, %f, %f, %f, %f\r\n", i + 1, s->joint_1, s->joint_2, s->joint_3, s->joint_4, s->joint_5, s->joint_6);

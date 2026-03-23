@@ -214,7 +214,7 @@ ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode m
                 if(ret != ARM_SUCCESS) continue;
                 if(!solution_is_unique(joints, &candidate)) continue;
 
-                *solution_select(joints, joints->num_solutions) = candidate;
+                *s_solution_select(joints, joints->num_solutions) = candidate;
                 joints->num_solutions++;
             }
         }
@@ -229,7 +229,7 @@ ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode m
  * @param idx 要选择的解的索引，范围 0-7
  * @return 指向选择的解的指针，如果索引无效则返回 NULL
  */
-SixDofJoint* solution_select(SixDofJointAll* sols, uint8_t idx) {
+SixDofJoint* s_solution_select(SixDofJointAll* sols, uint8_t idx) {
     switch(idx) {
         case 0: return &sols->solution_1;
         case 1: return &sols->solution_2;
@@ -246,9 +246,12 @@ SixDofJoint* solution_select(SixDofJointAll* sols, uint8_t idx) {
 /**
  * @brief 将欧拉角转换为四元数
  * @param rpy 输入的欧拉角，单位为弧度
- * @return 转换得到的四元数
+ * @param quat 输出的四元数
+ * @return ArmErrorCode 错误码
  */
-Quaternion s_rpy_to_quat(const RPY rpy) {
+ArmErrorCode s_rpy_to_quat(const RPY rpy, Quaternion* quat) {
+    if(!quat) return ARM_ERROR;
+
     float cx = cosf(rpy.roll * 0.5f);
     float sx = sinf(rpy.roll * 0.5f);
     float cy = cosf(rpy.pitch * 0.5f);
@@ -256,38 +259,38 @@ Quaternion s_rpy_to_quat(const RPY rpy) {
     float cz = cosf(rpy.yaw * 0.5f);
     float sz = sinf(rpy.yaw * 0.5f);
 
-    Quaternion q;
-    q.w = cx * cy * cz + sx * sy * sz;
-    q.x = sx * cy * cz - cx * sy * sz;
-    q.y = cx * sy * cz + sx * cy * sz;
-    q.z = cx * cy * sz - sx * sy * cz;
+    quat->w = cx * cy * cz + sx * sy * sz;
+    quat->x = sx * cy * cz - cx * sy * sz;
+    quat->y = cx * sy * cz + sx * cy * sz;
+    quat->z = cx * cy * sz - sx * sy * cz;
 
-    return q;
+    return ARM_SUCCESS;
 }
 
 /**
  * @brief 将四元数转换为欧拉角
  * @param q 输入的四元数
- * @return 转换得到的欧拉角，单位为弧度
+ * @param rpy 输出的欧拉角
+ * @return ArmErrorCode 错误码
  */
-RPY s_quat_to_rpy(const Quaternion q) {
-    RPY rpy;
+ArmErrorCode s_quat_to_rpy(const Quaternion q, RPY* rpy) {
+    if(!rpy) return ARM_ERROR;
 
     float sinr_cosp = 2.0f * (q.w * q.x + q.y * q.z);
     float cosr_cosp = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
-    rpy.roll = atan2f(sinr_cosp, cosr_cosp);
+    rpy->roll = atan2f(sinr_cosp, cosr_cosp);
 
     float sinp = 2.0f * (q.w * q.y - q.z * q.x);
     if(fabsf(sinp) >= 1.0f)
-        rpy.pitch = copysignf(M_PI / 2.0f, sinp);
+        rpy->pitch = copysignf(M_PI / 2.0f, sinp);
     else
-        rpy.pitch = asinf(sinp);
+        rpy->pitch = asinf(sinp);
 
     float siny_cosp = 2.0f * (q.w * q.z + q.x * q.y);
     float cosy_cosp = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
-    rpy.yaw = atan2f(siny_cosp, cosy_cosp);
+    rpy->yaw = atan2f(siny_cosp, cosy_cosp);
 
-    return rpy;
+    return ARM_SUCCESS;
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
@@ -509,7 +512,7 @@ static bool solution_is_unique(const SixDofJointAll* sols,
     const SixDofJoint* s;
 
     for(uint8_t k = 0; k < sols->num_solutions; k++) {
-        s = solution_select((SixDofJointAll*)sols, k);
+        s = s_solution_select((SixDofJointAll*)sols, k);
         if(fabsf(s->joint_1 - candidate->joint_1) < thresh &&
             fabsf(s->joint_2 - candidate->joint_2) < thresh &&
             fabsf(s->joint_3 - candidate->joint_3) < thresh &&
