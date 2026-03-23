@@ -317,7 +317,8 @@ static DmMotorErrorCode_e dm_can_send(uint16_t id, uint8_t data[8]) {
         return DM_MOTOR_ERROR;
     }
 
-    CanErrorCode_e can_result = d_can_write((can_instance_t* const)&g_canfd0, id, data, DM_MOTOR_CMD_LEN);
+    CanErrorCode_e can_result = can.write((can_instance_t* const)&g_canfd0, id, data, DM_MOTOR_CMD_LEN);
+
     s_delay_ms(1);
     return (can_result == CAN_SUCCESS) ? DM_MOTOR_SUCCESS : DM_MOTOR_ERROR;
 }
@@ -333,7 +334,7 @@ static DmMotorErrorCode_e dm_can_rcvd(uint8_t buffer[8]) {
     }
 
     can_frame_t frame;
-    CanErrorCode_e can_result = d_can_read((can_instance_t* const)&g_canfd0, &frame);
+    CanErrorCode_e can_result = can.read((can_instance_t* const)&g_canfd0, &frame);
     if(can_result != CAN_SUCCESS) {
         return DM_MOTOR_TIMEOUT;
     }

@@ -10,13 +10,21 @@
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
+/**
+ * @brief 毫秒微秒时间类型定义
+ */
 typedef uint32_t ms_t;
+typedef uint32_t us_t;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-void s_delay_init(ms_t(*get_ms)(void), bool(*ms_timeout)(ms_t start, ms_t timeout_ms));
+void s_delay_ms_init(ms_t(*get_ms)(void));
 void s_delay_ms(ms_t ms);
 void s_delay_s(ms_t s);
 bool s_nb_delay_ms(ms_t* start, ms_t interval_ms);
+
+void s_delay_us_init(us_t(*get_us)(void));
+void s_delay_us(us_t us);
+bool s_nb_delay_us(us_t* start, us_t interval_us);
 
 #endif

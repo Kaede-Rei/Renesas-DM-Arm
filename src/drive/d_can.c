@@ -9,6 +9,15 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
+const struct can_interface can = {
+    .init = d_can_init,
+    .tx_complete = d_can_tx_complete,
+    .rx_complete = d_can_rx_complete,
+    .is_busy = d_can_is_busy,
+    .write = d_can_write,
+    .read = d_can_read
+};
+
 // can rx 环形缓冲区容量
 #define CAN_RX_RING_CAPACITY    16
 

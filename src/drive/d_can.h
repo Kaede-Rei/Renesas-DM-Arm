@@ -19,6 +19,9 @@
  */
 #define d_can0_read(frame) d_can_read(&g_canfd0, frame)
 
+/**
+ * @brief 官方要求用户必须定义一个全局的 CANFD 接收过滤器数组
+ */
 extern const canfd_afl_entry_t p_canfd0_afl[CANFD_CFG_AFL_CH0_RULE_NUM];
 
 /**
@@ -38,6 +41,24 @@ typedef enum {
     CAN_OVERFLOW,
     CAN_EMPTY,
 } CanErrorCode_e;
+
+/**
+ * @brief CAN 单例
+ * @param init 初始化函数指针
+ * @param tx_complete 发送完成函数指针
+ * @param rx_complete 接收完成函数指针
+ * @param is_busy 判断是否忙碌函数指针
+ * @param write 写入数据函数指针
+ * @param read 读取数据函数指针
+ */
+extern const struct can_interface {
+    CanErrorCode_e(*init)(void);
+    CanErrorCode_e(*tx_complete)(void);
+    CanErrorCode_e(*rx_complete)(void);
+    CanErrorCode_e(*is_busy)(void);
+    CanErrorCode_e(*write)(can_instance_t* const can_instance, uint32_t id, uint8_t* data, uint8_t length);
+    CanErrorCode_e(*read)(can_instance_t* const can_instance, can_frame_t* const frame);
+} can;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 

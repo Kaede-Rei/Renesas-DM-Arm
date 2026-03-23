@@ -43,11 +43,11 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
 void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info);
 void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     if(d_systick_init() != FSP_SUCCESS) while(1);
-    s_delay_init(d_systick_get_ms, d_systick_is_timeout);
+    s_delay_ms_init(d_systick_get_ms);
 
     d_uart_init(UART7, uart7_rx_buf);
     d_wifi_bt_init(UART6, STA, (const uint8_t*)"RENE:", 5);
-    d_can_init();
+    can.init();
 
     s_delay_ms(2000);
     d_led_on();

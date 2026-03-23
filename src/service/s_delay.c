@@ -6,66 +6,103 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-typedef struct {
+/**
+ * @brief 延时服务操作函数指针结构体
+ * @param get_ms 获取当前毫秒数的函数指针
+ * @param get_us 获取当前微秒数的函数指针
+ */
+struct {
     ms_t(*get_ms)(void);
-    bool(*ms_timeout)(ms_t start, uint32_t timeout_ms);
-} delay_ops_t;
-
-static delay_ops_t _delay_ops = { 0 };
+    us_t(*get_us)(void);
+} delay_ops = { 0 };
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-
+static bool ms_timeout(ms_t start, ms_t timeout_ms);
+static bool us_timeout(us_t start, us_t timeout_us);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
 /**
- * @brief   延时服务初始化
- * @param   get_ms 获取当前毫秒数的函数指针
- * @param   ms_timeout 判断毫秒级是否超时的函数指针, 超时返回 true, 未超时返回 false
- * @param   get_us 获取当前微秒数的函数指针
- * @param   us_timeout 判断微秒级是否超时的函数指针, 超时返回 true, 未超时返回 false
- * @note    用法: 在系统初始化时调用, 传入对应的函数指针, 即可使用延时服务. 例如:
- * @note    s_delay_init(systick_get_ms, systick_is_timeout, dwt_get_us, dwt_is_timeout);
- * @note    其中: ms_t = us_t = uint32_t
+ * @brief 毫秒延时服务初始化
+ * @param get_ms 获取当前毫秒数的函数指针
+ * @param ms_timeout 判断毫秒级是否超时的函数指针, 超时返回 true, 未超时返回 false
+ * @note 用法: 在系统初始化时调用, 传入对应的函数指针, 即可使用延时服务. 例如:
+ * @note s_delay_ms_init(systick_get_ms, systick_is_timeout);
+ * @note 其中: ms_t = us_t = uint32_t
  */
-void s_delay_init(ms_t(*get_ms)(void), bool(*ms_timeout)(ms_t start, ms_t timeout_ms)) {
-    _delay_ops.get_ms = get_ms;
-    _delay_ops.ms_timeout = ms_timeout;
+void s_delay_ms_init(ms_t(*get_ms)(void)) {
+    delay_ops.get_ms = get_ms;
 }
 
 /**
- * @brief   毫秒级阻塞延时
- * @param   ms 延时毫秒数
- * @retval  None
+ * @brief 毫秒级阻塞延时
+ * @param ms 延时毫秒数
+ * @return None
  */
 void s_delay_ms(ms_t ms) {
-    ms_t start = _delay_ops.get_ms();
-    while(!_delay_ops.ms_timeout(start, ms));
+    ms_t start = delay_ops.get_ms();
+    while(!ms_timeout(start, ms));
 }
 
 /**
- * @brief   秒级阻塞延时
- * @param   s 延时秒数
- * @retval  None
+ * @brief 秒级阻塞延时
+ * @param s 延时秒数
+ * @return None
  */
 void s_delay_s(ms_t s) {
-    ms_t start = _delay_ops.get_ms();
-    while(!_delay_ops.ms_timeout(start, s * 1000));
+    ms_t start = delay_ops.get_ms();
+    while(!ms_timeout(start, s * 1000));
 }
 
 /**
- * @brief   非阻塞毫秒延时
- * @param   start 指向起始时间的指针
- * @param   interval_ms 延时间隔(ms)
- * @retval  bool -  true:时间到, false:未到
+ * @brief 非阻塞毫秒延时
+ * @param start 指向起始时间的指针
+ * @param interval_ms 延时间隔(ms)
+ * @return bool -  true:时间到, false:未到
  */
 bool s_nb_delay_ms(ms_t* start, ms_t interval_ms) {
     if(*start == 0) {
-        *start = _delay_ops.get_ms();
+        *start = delay_ops.get_ms();
         return false;
     }
-    if(_delay_ops.ms_timeout(*start, interval_ms)) {
+    if(ms_timeout(*start, interval_ms)) {
+        *start = 0;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * @brief 微秒延时服务初始化
+ * @param get_us 获取当前微秒数的函数指针
+ */
+void s_delay_us_init(us_t(*get_us)(void)) {
+    delay_ops.get_us = get_us;
+}
+
+/**
+ * @brief 微秒级阻塞延时
+ * @param us 延时微秒数
+ * @return None
+ */
+void s_delay_us(us_t us) {
+    us_t start = delay_ops.get_us();
+    while(!us_timeout(start, us));
+}
+
+/**
+ * @brief 非阻塞微秒延时
+ * @param start 指向起始时间的指针
+ * @param interval_us 延时间隔(us)
+ * @return bool -  true:时间到, false:未到
+ */
+bool s_nb_delay_us(us_t* start, us_t interval_us) {
+    if(*start == 0) {
+        *start = delay_ops.get_us();
+        return false;
+    }
+    if(us_timeout(*start, interval_us)) {
         *start = 0;
         return true;
     }
@@ -74,4 +111,34 @@ bool s_nb_delay_ms(ms_t* start, ms_t interval_ms) {
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 判断是否达到指定的毫秒级超时时间
+ * @param start 起始时间（毫秒）
+ * @param timeout_ms 超时时间（毫秒）
+ * @return true 表示已超时，false 表示未超时
+ */
+static bool ms_timeout(ms_t start, ms_t timeout_ms) {
+    ms_t now = delay_ops.get_ms();
+    if(now >= start) {
+        return (now - start) >= timeout_ms ? true : false;
+    }
+    else {
+        return ((0xFFFFFFFFU - start) + now + 1) >= timeout_ms ? true : false;
+    }
+}
 
+/**
+ * @brief 判断是否达到指定的微秒级超时时间
+ * @param start 起始时间（微秒）
+ * @param timeout_us 超时时间（微秒）
+ * @return true 表示已超时，false 表示未超时
+ */
+static bool us_timeout(us_t start, us_t timeout_us) {
+    us_t now = delay_ops.get_us();
+    if(now >= start) {
+        return (now - start) >= timeout_us ? true : false;
+    }
+    else {
+        return ((0xFFFFFFFFU - start) + now + 1) >= timeout_us ? true : false;
+    }
+}
