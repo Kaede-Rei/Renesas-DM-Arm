@@ -2,7 +2,7 @@
 #include "hal_data.h"
 
 // 工具库
-#include "tools/simple_api.h"
+// #include "tools/simple_api.h"
 #include "tools/protocol_parser.h"
 
 // 标准库
@@ -27,7 +27,7 @@
 
 
 // 测试函数
-void fk_ik_test();
+void fk_ik_test(WifiBtConnectInfo* info);
 
 #if (1 == BSP_MULTICORE_PROJECT) && BSP_TZ_SECURE_BUILD
 bsp_ipc_semaphore_handle_t g_core_start_semaphore =
@@ -62,10 +62,11 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     info->local_port = 5000;
     if(d_wifi_bt_join_ap(info->ssid, info->password) != WIFI_BT_SUCCESS) printf("WiFi 连接失败!\r\n");
     else printf("WiFi 连接成功!\r\n");
-    d_wifi_bt_connect(info);
-    d_wifi_bt_enter_transparent(info->socket_port);
 
-    // fk_ik_test();
+    d_wifi_bt_connect(info);
+
+    if(d_wifi_bt_enter_transparent(info->socket_port) != WIFI_BT_SUCCESS) printf("进入透传模式失败!\r\n");
+    else printf("进入透传模式成功!\r\n");
 }
 
 /*******************************************************************************************************************//**
@@ -75,11 +76,11 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
 void hal_entry(void) {
     /* TODO: add your own code here */
 
-    uint8_t uart6_buffer[256];
+    static uint8_t uart6_buffer[256];
     RingBuf buf6;
     RingBufCreate(&buf6, uart6_buffer, sizeof(uart6_buffer), 1);
 
-    uint8_t uart7_buffer[256];
+    static uint8_t uart7_buffer[256];
     RingBuf buf7;
     RingBufCreate(&buf7, uart7_buffer, sizeof(uart7_buffer), 1);
 
@@ -95,6 +96,8 @@ void hal_entry(void) {
     uint16_t frame_len = 0;
     uint16_t frame_fps = 0;
 
+    bool test = false;
+
     while(1) {
         WifiBtErrorCode net_status = d_wifi_bt_heartbeat(&info, 1000);
 
@@ -104,7 +107,7 @@ void hal_entry(void) {
         }
 
         if(s_nb_delay_ms(&printf_task, 1000)) {
-            char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
+            static char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
             uint16_t copy_len = (frame_len < WIFI_BT_FRAME_BUF_SIZE) ? frame_len : WIFI_BT_FRAME_BUF_SIZE;
 
             memcpy(print_buf, frame_buf, copy_len);
@@ -121,6 +124,11 @@ void hal_entry(void) {
                 d_dm_request_feedback(0x01);
                 d_dm_update(&feedback);
             }
+        }
+
+        if(test == false) {
+            fk_ik_test(&info);
+            test = true;
         }
     }
 
@@ -167,7 +175,7 @@ FSP_CPP_FOOTER
 
 #endif
 
-void fk_ik_test() {
+void fk_ik_test(WifiBtConnectInfo* info) {
     // 测试电机
     d_dm_enable(0x01);
     d_dm_enable(0x02);
@@ -182,7 +190,8 @@ void fk_ik_test() {
     float dy = 0.059971f;
     float phi = atan2f(dy, dx);
     float a3 = sqrtf(powf(dx, 2) + powf(dy, 2));
-    ArmMDH mdh = {
+    static ArmMDH mdh;
+    mdh = (ArmMDH){
         .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
         .a = { 0, 0.02f, 0.264f, a3, 0.061868f, 0 },
         .d = { 0.1f, 0, 0, 0, 0, 0.19f },
@@ -206,20 +215,16 @@ void fk_ik_test() {
         return;
     }
 
-    printf("IK Joints: ");
-    print_float(ik_joints.joint_1); printf(" ");
-    print_float(ik_joints.joint_2); printf(" ");
-    print_float(ik_joints.joint_3); printf(" ");
-    print_float(ik_joints.joint_4); printf(" ");
-    print_float(ik_joints.joint_5); printf(" ");
-    print_float(ik_joints.joint_6); printf("\r\n");
+    printf("IK Joints: %f, %f, %f, %f, %f, %f\r\n", ik_joints.joint_1, ik_joints.joint_2, ik_joints.joint_3, ik_joints.joint_4, ik_joints.joint_5, ik_joints.joint_6);
+    char joint_buf[128];
+    int len = snprintf(joint_buf, sizeof(joint_buf), "IK Joints: %f %f %f %f %f %f", ik_joints.joint_1, ik_joints.joint_2, ik_joints.joint_3, ik_joints.joint_4, ik_joints.joint_5, ik_joints.joint_6);
+    d_wifi_bt_send(*info, joint_buf, (uint16_t)len);
 
     Pose verify_pose;
     s_six_dof_fk(&ik_joints, &verify_pose);
-    printf("Position error: ");
-    print_float(pose.position.x - verify_pose.position.x); printf(" ");
-    print_float(pose.position.y - verify_pose.position.y); printf(" ");
-    print_float(pose.position.z - verify_pose.position.z); printf("\r\n");
+    printf("Position error: %f %f %f\r\n", pose.position.x - verify_pose.position.x, pose.position.y - verify_pose.position.y, pose.position.z - verify_pose.position.z);
+    len = snprintf(joint_buf, sizeof(joint_buf), "Position error: %f %f %f", pose.position.x - verify_pose.position.x, pose.position.y - verify_pose.position.y, pose.position.z - verify_pose.position.z);
+    d_wifi_bt_send(*info, joint_buf, (uint16_t)len);
 
     d_dm_set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
     d_dm_set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
