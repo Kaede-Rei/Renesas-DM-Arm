@@ -128,7 +128,7 @@ void hal_entry(void) {
 
         if(s_nb_delay_ms(&printf_task, 1000)) {
             comms.get_weed(&weed_data);
-            printf("Net Status: %d, DM FPS: %d, WEED: %u, %u, %u, %.2f\r\n", net_status, feedback_fps, weed_data.id, weed_data.x, weed_data.y, weed_data.confidence);
+            printf("Net Status: %d, DM FPS: %d, WEED: %u, %.2f, %.2f, %.2f, %.2f\r\n", net_status, feedback_fps, weed_data.id, weed_data.x, weed_data.y, weed_data.z, weed_data.confidence);
 
             feedback_fps = 0;
         }

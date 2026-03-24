@@ -33,8 +33,7 @@ const struct CommsInterface s_comms_instance = {
 static CommsStatus process_weed(const uint8_t* packet, size_t length);
 
 static bool parse_u8(const uint8_t* str, uint8_t* out);
-static bool parse_u16(const uint8_t* str, uint16_t* out);
-static bool parse_confidence(const char* str, float* out);
+static bool parse_float(const char* str, float* out);
 static void rm_str_end_r_n(char* str);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
@@ -80,10 +79,12 @@ static CommsStatus process_weed(const uint8_t* packet, size_t length) {
     char* comma1 = NULL;
     char* comma2 = NULL;
     char* comma3 = NULL;
+    char* comma4 = NULL;
 
     char* id_str = NULL;
     char* x_str = NULL;
     char* y_str = NULL;
+    char* z_str = NULL;
     char* confidence_str = NULL;
 
     WeedData parsed = { 0 };
@@ -106,23 +107,29 @@ static CommsStatus process_weed(const uint8_t* packet, size_t length) {
     if(comma2 == NULL) return comms.INVALID_PACKET;
     comma3 = strchr(comma2 + 1, ',');
     if(comma3 == NULL) return comms.INVALID_PACKET;
-    if(strchr(comma3 + 1, ',') != NULL) return comms.INVALID_PACKET;
+    comma4 = strchr(comma3 + 1, ',');
+    if(comma4 == NULL) return comms.INVALID_PACKET;
+    if(strchr(comma4 + 1, ',') != NULL) return comms.INVALID_PACKET;
 
     *comma1 = '\0';
     *comma2 = '\0';
     *comma3 = '\0';
+    *comma4 = '\0';
 
     id_str = payload;
     x_str = comma1 + 1;
     y_str = comma2 + 1;
-    confidence_str = comma3 + 1;
+    z_str = comma3 + 1;
+    confidence_str = comma4 + 1;
 
-    if(*id_str == '\0' || *x_str == '\0' || *y_str == '\0' || *confidence_str == '\0') return comms.INVALID_PACKET;
+    if(*id_str == '\0' || *x_str == '\0' || *y_str == '\0' || *z_str == '\0' || *confidence_str == '\0') return comms.INVALID_PACKET;
 
     if(!parse_u8((uint8_t*)id_str, &parsed.id)) return comms.OUT_OF_RANGE;
-    if(!parse_u16((uint8_t*)x_str, &parsed.x)) return comms.OUT_OF_RANGE;
-    if(!parse_u16((uint8_t*)y_str, &parsed.y)) return comms.OUT_OF_RANGE;
-    if(!parse_confidence(confidence_str, &parsed.confidence)) return comms.OUT_OF_RANGE;
+    if(!parse_float(x_str, &parsed.x)) return comms.OUT_OF_RANGE;
+    if(!parse_float(y_str, &parsed.y)) return comms.OUT_OF_RANGE;
+    if(!parse_float(z_str, &parsed.z)) return comms.OUT_OF_RANGE;
+    if(!parse_float(confidence_str, &parsed.confidence)) return comms.OUT_OF_RANGE;
+    if(parsed.confidence < 0.0f || parsed.confidence > 1.0f) return comms.OUT_OF_RANGE;
 
     weed_comms = parsed;
     return comms.OK;
@@ -154,36 +161,12 @@ static bool parse_u8(const uint8_t* str, uint8_t* out) {
 }
 
 /**
- * @brief 解析 uint16_t 数值
+ * @brief 解析浮点数数值
  * @param str 输入字符串
  * @param out 输出数值指针
  * @return true 成功，false 失败
  */
-static bool parse_u16(const uint8_t* str, uint16_t* out) {
-    if(str == NULL || out == NULL || *str == '\0') return false;
-
-    char* end_ptr;
-    unsigned long value = 0;
-
-    errno = 0;
-    value = strtoul((const char*)str, &end_ptr, 10);
-
-    if(errno != 0) return false;
-    if(end_ptr == (const char*)str) return false;
-    if(*end_ptr != '\0') return false;
-    if(value > 65535) return false;
-
-    *out = (uint16_t)value;
-    return true;
-}
-
-/**
- * @brief 解析置信度数值
- * @param str 输入字符串
- * @param out 输出数值指针
- * @return true 成功，false 失败
- */
-static bool parse_confidence(const char* str, float* out) {
+static bool parse_float(const char* str, float* out) {
     if(str == NULL || out == NULL || *str == '\0') return false;
 
     char* end_ptr;
@@ -195,8 +178,6 @@ static bool parse_confidence(const char* str, float* out) {
     if(errno != 0) return false;
     if(end_ptr == str) return false;
     if(*end_ptr != '\0') return false;
-
-    if(value < 0.0f || value > 1.0f) return false;
 
     *out = value;
     return true;

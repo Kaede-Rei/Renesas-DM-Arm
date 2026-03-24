@@ -40,8 +40,9 @@ typedef enum {
  */
 typedef struct {
     uint8_t id;
-    uint16_t x;
-    uint16_t y;
+    float x;
+    float y;
+    float z;
     float confidence;
 } WeedData;
 

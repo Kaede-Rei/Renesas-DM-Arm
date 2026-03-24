@@ -323,7 +323,7 @@ WifiBtStatus d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
         d_wifi_bt_send_frame(*info, heart_frame, (uint16_t)(header_len + 2 + 5));
     }
 
-    if(is_connected && (now - config.last_recv_time > timeout_ms * 5)) {
+    if(is_connected && (now - config.last_recv_time > timeout_ms * 3)) {
         printf("心跳超时，触发重连\r\n");
         is_connected = false;
     }
