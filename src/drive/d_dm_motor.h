@@ -108,7 +108,7 @@ typedef struct {
 #define Y(name, value) const DmMotorMode name;
 extern const struct DmMotorInterface {
     /**
-     * @brief 电机状态码，由 X-Macro 自动生成枚举类型
+     * @brief 电机状态码 DmMotorStatus，由 X-Macro 自动生成枚举类型
      * @param OK 操作成功
      * @param ERROR 操作失败
      * @param TIMEOUT 操作超时
@@ -118,7 +118,7 @@ extern const struct DmMotorInterface {
         DM_MOTOR_STATUS_TABLE
     };
     /**
-     * @brief 电机模式，由 X-Macro 自动生成枚举类型
+     * @brief 电机模式 DmMotorMode，由 X-Macro 自动生成枚举类型
      * @param MIT MIT 模式
      * @param POS_SPD 位置速度模式
      * @param SPD 速度模式
@@ -127,6 +127,16 @@ extern const struct DmMotorInterface {
     struct {
         DM_MOTOR_MODE_TABLE
     };
+    /**
+     * @brief 将电机状态码转换为字符串
+     * @param status 电机状态码
+     */
+    const char* (*status_str)(DmMotorStatus status);
+    /**
+     * @brief 将电机模式转换为字符串
+     * @param mode 电机模式
+     */
+    const char* (*mode_str)(DmMotorMode mode);
     /**
      * @brief 使能电机
      * @param id 电机 ID
@@ -243,6 +253,9 @@ extern const struct DmMotorInterface {
 #undef Y
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
+
+const char* d_dm_status_str(DmMotorStatus status);
+const char* d_dm_mode_str(DmMotorMode mode);
 
 DmMotorStatus d_dm_enable(uint16_t id);
 DmMotorStatus d_dm_disable(uint16_t id);

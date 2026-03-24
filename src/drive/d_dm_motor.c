@@ -21,6 +21,8 @@ const struct DmMotorInterface d_dm_motor_instance = {
         DM_MOTOR_MODE_TABLE
         #undef Y
     },
+    .status_str = d_dm_status_str,
+    .mode_str = d_dm_mode_str,
     .enable = d_dm_enable,
     .disable = d_dm_disable,
     .set_mit = d_dm_set_mit,
@@ -46,6 +48,32 @@ static uint16_t dm_f32_to_u16(float val, float min, float max, uint8_t bits);
 static float dm_u16_to_f32(uint16_t val, float min, float max, uint8_t bits);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
+
+/**
+ * @brief 将电机状态码转换为字符串
+ * @param status 电机状态码
+ */
+#define X(name, value) case DM_MOTOR_##name: return #name;
+const char* d_dm_status_str(DmMotorStatus status) {
+    switch(status) {
+        DM_MOTOR_STATUS_TABLE
+        default: return "UNKNOWN";
+    }
+}
+#undef X
+
+/**
+ * @brief 将电机模式转换为字符串
+ * @param mode 电机模式
+ */
+#define Y(name, value) case DM_MOTOR_MODE_##name: return #name;
+const char* d_dm_mode_str(DmMotorMode mode) {
+    switch(mode) {
+        DM_MOTOR_MODE_TABLE
+        default: return "UNKNOWN";
+    }
+}
+#undef Y
 
 /**
  * @brief 使能电机
