@@ -11,6 +11,16 @@
 // ! ========================= 变 量 声 明 ========================= ! //
 
 const struct DmMotorInterface d_dm_motor_instance = {
+    {
+        #define X(name, value) .name = DM_MOTOR_##name,
+        DM_MOTOR_STATUS_TABLE
+        #undef X
+    },
+    {
+        #define Y(name, value) .name = DM_MOTOR_MODE_##name,
+        DM_MOTOR_MODE_TABLE
+        #undef Y
+    },
     .enable = d_dm_enable,
     .disable = d_dm_disable,
     .set_mit = d_dm_set_mit,
@@ -28,10 +38,10 @@ const struct DmMotorInterface d_dm_motor_instance = {
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-static DmMotorErrorCode_e dm_can_send(uint16_t id, uint8_t data[8]);
-static DmMotorErrorCode_e dm_can_rcvd(uint8_t buffer[8]);
+static DmMotorStatus dm_can_send(uint16_t id, uint8_t data[8]);
+static DmMotorStatus dm_can_rcvd(uint8_t buffer[8]);
 static void dm_write_register(uint16_t id, uint8_t rid, uint8_t d0, uint8_t d1, uint8_t d2, uint8_t d3);
-static void dm_switch_mode(uint16_t id, DmMotorMode_e mode);
+static void dm_switch_mode(uint16_t id, DmMotorMode mode);
 static uint16_t dm_f32_to_u16(float val, float min, float max, uint8_t bits);
 static float dm_u16_to_f32(uint16_t val, float min, float max, uint8_t bits);
 
@@ -40,9 +50,9 @@ static float dm_u16_to_f32(uint16_t val, float min, float max, uint8_t bits);
 /**
  * @brief 使能电机
  * @param id 电机 ID
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_enable(uint16_t id) {
+DmMotorStatus d_dm_enable(uint16_t id) {
     uint8_t data[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFC };
     return dm_can_send(id, data);
 }
@@ -50,9 +60,9 @@ DmMotorErrorCode_e d_dm_enable(uint16_t id) {
 /**
  * @brief 禁用电机
  * @param id 电机 ID
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_disable(uint16_t id) {
+DmMotorStatus d_dm_disable(uint16_t id) {
     uint8_t data[8] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFD };
     return dm_can_send(id, data);
 }
@@ -65,9 +75,9 @@ DmMotorErrorCode_e d_dm_disable(uint16_t id) {
  * @param kp 位置环比例增益，范围为 0 到 500
  * @param kd 位置环微分增益，范围为 0 到 5
  * @param torque 目标电流，单位为 A，范围为 -28 到 28
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_set_mit(uint16_t id, float pos, float spd, float kp, float kd, float torque) {
+DmMotorStatus d_dm_set_mit(uint16_t id, float pos, float spd, float kp, float kd, float torque) {
     dm_switch_mode(id, DM_MOTOR_MODE_MIT);
 
     uint16_t pos_bits = dm_f32_to_u16(pos, -DM_MOTOR_POS_LIMIT, DM_MOTOR_POS_LIMIT, 16);
@@ -94,9 +104,9 @@ DmMotorErrorCode_e d_dm_set_mit(uint16_t id, float pos, float spd, float kp, flo
  * @param id 电机 ID
  * @param pos 目标位置，单位为弧度，范围为 -12.5 到 12.5
  * @param spd 目标速度，单位为弧度每秒，范围为 -10 到 10
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_set_pos_spd(uint16_t id, float pos, float spd) {
+DmMotorStatus d_dm_set_pos_spd(uint16_t id, float pos, float spd) {
     dm_switch_mode(id, DM_MOTOR_MODE_POS_SPD);
 
     uint16_t target_id = (uint16_t)(id + 0x100);
@@ -111,9 +121,9 @@ DmMotorErrorCode_e d_dm_set_pos_spd(uint16_t id, float pos, float spd) {
  * @brief 设置电机为速度模式并发送控制命令
  * @param id 电机 ID
  * @param spd 目标速度，单位为弧度每秒，范围为 -10 到 10
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_set_spd(uint16_t id, float spd) {
+DmMotorStatus d_dm_set_spd(uint16_t id, float spd) {
     dm_switch_mode(id, DM_MOTOR_MODE_SPD);
 
     uint16_t target_id = (uint16_t)(id + 0x200);
@@ -129,9 +139,9 @@ DmMotorErrorCode_e d_dm_set_spd(uint16_t id, float spd) {
  * @param pos 目标位置，单位为弧度，范围为 -12.5 到 12.5
  * @param spd 目标速度，单位为弧度每秒，范围为 -10 到 10
  * @param cur 目标电流，单位为 A，范围为 -28 到 28
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_set_pos_spd_cur(uint16_t id, float pos, float spd, float cur) {
+DmMotorStatus d_dm_set_pos_spd_cur(uint16_t id, float pos, float spd, float cur) {
     dm_switch_mode(id, DM_MOTOR_MODE_POS_SPD_CUR);
 
     uint16_t target_id = (uint16_t)(id + 0x300);
@@ -153,9 +163,9 @@ DmMotorErrorCode_e d_dm_set_pos_spd_cur(uint16_t id, float pos, float spd, float
  * @param id 电机 ID
  * @param feedback 存储反馈数据的缓冲区，长度至少为 8 字节
  * @param timeout_ms 等待反馈的超时时间，单位为毫秒
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_get_feedback(uint16_t id, uint8_t feedback[8], uint32_t timeout_ms) {
+DmMotorStatus d_dm_get_feedback(uint16_t id, uint8_t feedback[8], uint32_t timeout_ms) {
     if(feedback == NULL) {
         return DM_MOTOR_ERROR;
     }
@@ -164,16 +174,16 @@ DmMotorErrorCode_e d_dm_get_feedback(uint16_t id, uint8_t feedback[8], uint32_t 
     uint8_t can_id_h = (uint8_t)((id >> 8) & 0x07);
     uint8_t req_data[8] = { can_id_l, can_id_h, 0xCC, 0x00, 0, 0, 0, 0 };
 
-    if(dm_can_send(0x7FF, req_data) != DM_MOTOR_SUCCESS) {
+    if(dm_can_send(0x7FF, req_data) != DM_MOTOR_OK) {
         return DM_MOTOR_ERROR;
     }
 
     ms_t start = d_systick_get_ms();
     while(!d_systick_is_timeout(start, timeout_ms)) {
-        if(dm_can_rcvd(feedback) == DM_MOTOR_SUCCESS) {
+        if(dm_can_rcvd(feedback) == DM_MOTOR_OK) {
             uint8_t expected_id = (uint8_t)(can_id_l & 0x0F);
             uint8_t received_id = (uint8_t)(feedback[0] & 0x0F);
-            return (expected_id == received_id) ? DM_MOTOR_SUCCESS : DM_MOTOR_ID_MISMATCH;
+            return (expected_id == received_id) ? DM_MOTOR_OK : DM_MOTOR_ID_MISMATCH;
         }
     }
 
@@ -185,21 +195,21 @@ DmMotorErrorCode_e d_dm_get_feedback(uint16_t id, uint8_t feedback[8], uint32_t 
  * @param id 电机 ID
  * @param err_code 存储错误代码的指针
  * @param timeout_ms 等待反馈的超时时间，单位为毫秒
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_get_err_code(uint16_t id, uint8_t* err_code, uint32_t timeout_ms) {
+DmMotorStatus d_dm_get_err_code(uint16_t id, uint8_t* err_code, uint32_t timeout_ms) {
     if(err_code == NULL) {
         return DM_MOTOR_ERROR;
     }
 
     uint8_t feedback[8];
-    DmMotorErrorCode_e result = d_dm_get_feedback(id, feedback, timeout_ms);
-    if(result != DM_MOTOR_SUCCESS) {
+    DmMotorStatus result = d_dm_get_feedback(id, feedback, timeout_ms);
+    if(result != DM_MOTOR_OK) {
         return result;
     }
 
     *err_code = (uint8_t)(feedback[0] >> 4);
-    return DM_MOTOR_SUCCESS;
+    return DM_MOTOR_OK;
 }
 
 /**
@@ -207,23 +217,23 @@ DmMotorErrorCode_e d_dm_get_err_code(uint16_t id, uint8_t* err_code, uint32_t ti
  * @param id 电机 ID
  * @param pos 存储位置的指针，单位为弧度
  * @param timeout_ms 等待反馈的超时时间，单位为毫秒
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms) {
+DmMotorStatus d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms) {
     if(pos == NULL) {
         return DM_MOTOR_ERROR;
     }
 
     uint8_t feedback[8];
-    DmMotorErrorCode_e result = d_dm_get_feedback(id, feedback, timeout_ms);
+    DmMotorStatus result = d_dm_get_feedback(id, feedback, timeout_ms);
 
-    if(result != DM_MOTOR_SUCCESS) {
+    if(result != DM_MOTOR_OK) {
         return result;
     }
 
     uint16_t pos_bits = (uint16_t)(((uint16_t)feedback[1] << 8) | feedback[2]);
     *pos = dm_u16_to_f32(pos_bits, -DM_MOTOR_POS_LIMIT, DM_MOTOR_POS_LIMIT, 16);
-    return DM_MOTOR_SUCCESS;
+    return DM_MOTOR_OK;
 }
 
 /**
@@ -231,22 +241,22 @@ DmMotorErrorCode_e d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms) {
  * @param id 电机 ID
  * @param spd 存储速度的指针，单位为弧度每秒
  * @param timeout_ms 等待反馈的超时时间，单位为毫秒
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_get_spd(uint16_t id, float* spd, uint32_t timeout_ms) {
+DmMotorStatus d_dm_get_spd(uint16_t id, float* spd, uint32_t timeout_ms) {
     if(spd == NULL) {
         return DM_MOTOR_ERROR;
     }
 
     uint8_t feedback[8];
-    DmMotorErrorCode_e result = d_dm_get_feedback(id, feedback, timeout_ms);
-    if(result != DM_MOTOR_SUCCESS) {
+    DmMotorStatus result = d_dm_get_feedback(id, feedback, timeout_ms);
+    if(result != DM_MOTOR_OK) {
         return result;
     }
 
     uint16_t spd_bits = (uint16_t)(((uint16_t)feedback[3] << 4) | ((uint16_t)(feedback[4] & 0xF0) >> 4));
     *spd = dm_u16_to_f32(spd_bits, -DM_MOTOR_SPD_LIMIT, DM_MOTOR_SPD_LIMIT, 12);
-    return DM_MOTOR_SUCCESS;
+    return DM_MOTOR_OK;
 }
 
 /**
@@ -254,30 +264,30 @@ DmMotorErrorCode_e d_dm_get_spd(uint16_t id, float* spd, uint32_t timeout_ms) {
  * @param id 电机 ID
  * @param torque 存储扭矩的指针，单位为 A
  * @param timeout_ms 等待反馈的超时时间，单位为毫秒
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_get_torque(uint16_t id, float* torque, uint32_t timeout_ms) {
+DmMotorStatus d_dm_get_torque(uint16_t id, float* torque, uint32_t timeout_ms) {
     if(torque == NULL) {
         return DM_MOTOR_ERROR;
     }
 
     uint8_t feedback[8];
-    DmMotorErrorCode_e result = d_dm_get_feedback(id, feedback, timeout_ms);
-    if(result != DM_MOTOR_SUCCESS) {
+    DmMotorStatus result = d_dm_get_feedback(id, feedback, timeout_ms);
+    if(result != DM_MOTOR_OK) {
         return result;
     }
 
     uint16_t torque_bits = (uint16_t)((((uint16_t)feedback[4] & 0x0F) << 8) | feedback[5]);
     *torque = dm_u16_to_f32(torque_bits, -DM_MOTOR_TORQUE_LIMIT, DM_MOTOR_TORQUE_LIMIT, 12);
-    return DM_MOTOR_SUCCESS;
+    return DM_MOTOR_OK;
 }
 
 /**
  * @brief 请求电机发送反馈信息
  * @param id 电机 ID
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_request_feedback(uint16_t id) {
+DmMotorStatus d_dm_request_feedback(uint16_t id) {
     uint8_t can_id_l = (uint8_t)(id & 0xFF);
     uint8_t can_id_h = (uint8_t)((id >> 8) & 0x07);
     uint8_t req_data[8] = { can_id_l, can_id_h, 0xCC, 0x00, 0, 0, 0, 0 };
@@ -288,15 +298,15 @@ DmMotorErrorCode_e d_dm_request_feedback(uint16_t id) {
 /**
  * @brief 更新电机反馈信息
  * @param feedback 存储反馈数据的结构体指针
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-DmMotorErrorCode_e d_dm_update(DmMotorFeedback_t* feedback) {
+DmMotorStatus d_dm_update(DmMotorFeedback* feedback) {
     if(feedback == NULL) {
         return DM_MOTOR_ERROR;
     }
 
     uint8_t raw_feedback[8];
-    if(dm_can_rcvd(raw_feedback) != DM_MOTOR_SUCCESS) {
+    if(dm_can_rcvd(raw_feedback) != DM_MOTOR_OK) {
         return DM_MOTOR_ERROR;
     }
 
@@ -315,7 +325,7 @@ DmMotorErrorCode_e d_dm_update(DmMotorFeedback_t* feedback) {
     feedback->spd = spd;
     feedback->torque = torque;
 
-    return DM_MOTOR_SUCCESS;
+    return DM_MOTOR_OK;
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
@@ -324,9 +334,9 @@ DmMotorErrorCode_e d_dm_update(DmMotorFeedback_t* feedback) {
  * @brief 向 CAN 发送数据帧
  * @param id CAN ID
  * @param data 要发送的数据，长度必须为 8 字节
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-static DmMotorErrorCode_e dm_can_send(uint16_t id, uint8_t data[8]) {
+static DmMotorStatus dm_can_send(uint16_t id, uint8_t data[8]) {
     if(data == NULL) {
         return DM_MOTOR_ERROR;
     }
@@ -334,15 +344,15 @@ static DmMotorErrorCode_e dm_can_send(uint16_t id, uint8_t data[8]) {
     CanErrorCode_e can_result = can.write((can_instance_t* const)&g_canfd0, id, data, DM_MOTOR_CMD_LEN);
 
     s_delay_ms(1);
-    return (can_result == CAN_SUCCESS) ? DM_MOTOR_SUCCESS : DM_MOTOR_ERROR;
+    return (can_result == CAN_SUCCESS) ? DM_MOTOR_OK : DM_MOTOR_ERROR;
 }
 
 /**
  * @brief 从 CAN 接收数据帧
  * @param buffer 存储接收数据的缓冲区，长度至少为 8 字节
- * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+ * @return DmMotorStatus 枚举类型，表示操作结果
  */
-static DmMotorErrorCode_e dm_can_rcvd(uint8_t buffer[8]) {
+static DmMotorStatus dm_can_rcvd(uint8_t buffer[8]) {
     if(buffer == NULL) {
         return DM_MOTOR_ERROR;
     }
@@ -362,7 +372,7 @@ static DmMotorErrorCode_e dm_can_rcvd(uint8_t buffer[8]) {
         memset(&buffer[data_len], 0, DM_MOTOR_CMD_LEN - data_len);
     }
 
-    return DM_MOTOR_SUCCESS;
+    return DM_MOTOR_OK;
 }
 
 /**
@@ -387,7 +397,7 @@ static void dm_write_register(uint16_t id, uint8_t rid, uint8_t d0, uint8_t d1, 
  * @param id 电机 ID
  * @param mode 目标工作模式
  */
-static void dm_switch_mode(uint16_t id, DmMotorMode_e mode) {
+static void dm_switch_mode(uint16_t id, DmMotorMode mode) {
     dm_write_register(id, 10, (uint8_t)mode, 0, 0, 0);
     s_delay_ms(1);
 }

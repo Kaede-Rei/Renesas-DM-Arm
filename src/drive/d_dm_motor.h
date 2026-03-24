@@ -12,32 +12,52 @@
 #define dm d_dm_motor_instance
 
 /**
- * @brief DmMotorErrorCode_e 枚举类型，表示电机操作的结果
- * @param DM_MOTOR_SUCCESS 操作成功
- * @param DM_MOTOR_ERROR 操作失败
- * @param DM_MOTOR_TIMEOUT 操作超时
- * @param DM_MOTOR_ID_MISMATCH 电机 ID 不匹配
+ * @brief 达妙电机状态码表，使用 X-Macro 定义，方便维护和扩展
+ * @param OK 操作成功
+ * @param ERROR 操作失败
+ * @param TIMEOUT 操作超时
+ * @param ID_MISMATCH 电机 ID 不匹配
  */
-typedef enum {
-    DM_MOTOR_SUCCESS = 0,
-    DM_MOTOR_ERROR,
-    DM_MOTOR_TIMEOUT,
-    DM_MOTOR_ID_MISMATCH,
-} DmMotorErrorCode_e;
+#define DM_MOTOR_STATUS_TABLE \
+    X(OK, 0) \
+    X(ERROR, 1) \
+    X(TIMEOUT, 2) \
+    X(ID_MISMATCH, 3)
 
 /**
- * @brief DmMotorMode_e 枚举类型，表示电机的工作模式
+ * @brief 达妙电机模式表，使用 X-Macro 定义，方便维护和扩展
+ * @param MIT MIT 模式
+ * @param POS_SPD 位置速度模式
+ * @param SPD 速度模式
+ * @param POS_SPD_CUR 位置速度电流模式
+ */
+#define DM_MOTOR_MODE_TABLE \
+    Y(MIT, 1) \
+    Y(POS_SPD, 2) \
+    Y(SPD, 3) \
+    Y(POS_SPD_CUR, 4)
+
+/**
+ * @brief 达妙电机状态码，由 X-Macro 自动生成枚举类型
+ */
+#define X(name, value) DM_MOTOR_##name = value,
+typedef enum {
+    DM_MOTOR_STATUS_TABLE
+} DmMotorStatus;
+#undef X
+
+/**
+ * @brief DmMotorMode 枚举类型，表示电机的工作模式
  * @param DM_MOTOR_MODE_MIT MIT 模式
  * @param DM_MOTOR_MODE_POS_SPD 位置速度模式
  * @param DM_MOTOR_MODE_SPD 速度模式
  * @param DM_MOTOR_MODE_POS_SPD_CUR 位置速度电流模式
  */
+#define Y(name, value) DM_MOTOR_MODE_##name = value,
 typedef enum {
-    DM_MOTOR_MODE_MIT = 1,
-    DM_MOTOR_MODE_POS_SPD = 2,
-    DM_MOTOR_MODE_SPD = 3,
-    DM_MOTOR_MODE_POS_SPD_CUR = 4,
-} DmMotorMode_e;
+    DM_MOTOR_MODE_TABLE
+} DmMotorMode;
+#undef Y
 
 /**
  * @brief 电机反馈信息结构体
@@ -53,7 +73,7 @@ typedef struct {
     float pos;
     float spd;
     float torque;
-} DmMotorFeedback_t;
+} DmMotorFeedback;
 
 /// @brief 电机控制命令的长度，单位为字节
 #define DM_MOTOR_CMD_LEN                8
@@ -84,20 +104,42 @@ typedef struct {
  * @param request_feedback 请求电机发送反馈信息
  * @param update 更新电机反馈信息
  */
+#define X(name, value) const DmMotorStatus name;
+#define Y(name, value) const DmMotorMode name;
 extern const struct DmMotorInterface {
+    /**
+     * @brief 电机状态码，由 X-Macro 自动生成枚举类型
+     * @param OK 操作成功
+     * @param ERROR 操作失败
+     * @param TIMEOUT 操作超时
+     * @param ID_MISMATCH 电机 ID 不匹配
+     */
+    struct {
+        DM_MOTOR_STATUS_TABLE
+    };
+    /**
+     * @brief 电机模式，由 X-Macro 自动生成枚举类型
+     * @param MIT MIT 模式
+     * @param POS_SPD 位置速度模式
+     * @param SPD 速度模式
+     * @param POS_SPD_CUR 位置速度电流模式
+     */
+    struct {
+        DM_MOTOR_MODE_TABLE
+    };
     /**
      * @brief 使能电机
      * @param id 电机 ID
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*enable)(uint16_t id);
+    DmMotorStatus(*enable)(uint16_t id);
 
     /**
      * @brief 禁用电机
      * @param id 电机 ID
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*disable)(uint16_t id);
+    DmMotorStatus(*disable)(uint16_t id);
 
     /**
      * @brief 设置 MIT 模式
@@ -107,26 +149,26 @@ extern const struct DmMotorInterface {
      * @param kp 位置环比例增益
      * @param kd 位置环微分增益
      * @param torque 目标电流
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*set_mit)(uint16_t id, float pos, float spd, float kp, float kd, float torque);
+    DmMotorStatus(*set_mit)(uint16_t id, float pos, float spd, float kp, float kd, float torque);
 
     /**
      * @brief 设置位置速度模式
      * @param id 电机 ID
      * @param pos 目标位置
      * @param spd 目标速度
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*set_pos_spd)(uint16_t id, float pos, float spd);
+    DmMotorStatus(*set_pos_spd)(uint16_t id, float pos, float spd);
 
     /**
      * @brief 设置速度模式
      * @param id 电机 ID
      * @param spd 目标速度
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*set_spd)(uint16_t id, float spd);
+    DmMotorStatus(*set_spd)(uint16_t id, float spd);
 
     /**
      * @brief 设置位置速度电流模式
@@ -134,87 +176,89 @@ extern const struct DmMotorInterface {
      * @param pos 目标位置
      * @param spd 目标速度
      * @param cur 目标电流
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*set_pos_spd_cur)(uint16_t id, float pos, float spd, float cur);
+    DmMotorStatus(*set_pos_spd_cur)(uint16_t id, float pos, float spd, float cur);
 
     /**
      * @brief 获取电机原始反馈数据
      * @param id 电机 ID
      * @param feedback 反馈数据数组，长度为8
      * @param timeout_ms 超时时间（毫秒）
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*get_feedback)(uint16_t id, uint8_t feedback[8], uint32_t timeout_ms);
+    DmMotorStatus(*get_feedback)(uint16_t id, uint8_t feedback[8], uint32_t timeout_ms);
 
     /**
      * @brief 获取电机错误码
      * @param id 电机 ID
      * @param err_code 错误码指针
      * @param timeout_ms 超时时间（毫秒）
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*get_err_code)(uint16_t id, uint8_t* err_code, uint32_t timeout_ms);
+    DmMotorStatus(*get_err_code)(uint16_t id, uint8_t* err_code, uint32_t timeout_ms);
 
     /**
      * @brief 获取电机位置
      * @param id 电机 ID
      * @param pos 位置指针
      * @param timeout_ms 超时时间（毫秒）
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*get_pos)(uint16_t id, float* pos, uint32_t timeout_ms);
+    DmMotorStatus(*get_pos)(uint16_t id, float* pos, uint32_t timeout_ms);
 
     /**
      * @brief 获取电机速度
      * @param id 电机 ID
      * @param spd 速度指针
      * @param timeout_ms 超时时间（毫秒）
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*get_spd)(uint16_t id, float* spd, uint32_t timeout_ms);
+    DmMotorStatus(*get_spd)(uint16_t id, float* spd, uint32_t timeout_ms);
 
     /**
      * @brief 获取电机扭矩
      * @param id 电机 ID
      * @param torque 扭矩指针
      * @param timeout_ms 超时时间（毫秒）
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*get_torque)(uint16_t id, float* torque, uint32_t timeout_ms);
+    DmMotorStatus(*get_torque)(uint16_t id, float* torque, uint32_t timeout_ms);
 
     /**
      * @brief 主动请求电机反馈
      * @param id 电机 ID
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*request_feedback)(uint16_t id);
+    DmMotorStatus(*request_feedback)(uint16_t id);
 
     /**
      * @brief 更新电机反馈结构体
      * @param feedback 电机反馈结构体指针
-     * @return DmMotorErrorCode_e 枚举类型，表示操作结果
+     * @return DmMotorStatus 枚举类型，表示操作结果
      */
-    DmMotorErrorCode_e(*update)(DmMotorFeedback_t* feedback);
+    DmMotorStatus(*update)(DmMotorFeedback* feedback);
 } d_dm_motor_instance;
+#undef X
+#undef Y
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-DmMotorErrorCode_e d_dm_enable(uint16_t id);
-DmMotorErrorCode_e d_dm_disable(uint16_t id);
+DmMotorStatus d_dm_enable(uint16_t id);
+DmMotorStatus d_dm_disable(uint16_t id);
 
-DmMotorErrorCode_e d_dm_set_mit(uint16_t id, float pos, float spd, float kp, float kd, float torque);
-DmMotorErrorCode_e d_dm_set_pos_spd(uint16_t id, float pos, float spd);
-DmMotorErrorCode_e d_dm_set_spd(uint16_t id, float spd);
-DmMotorErrorCode_e d_dm_set_pos_spd_cur(uint16_t id, float pos, float spd, float cur);
+DmMotorStatus d_dm_set_mit(uint16_t id, float pos, float spd, float kp, float kd, float torque);
+DmMotorStatus d_dm_set_pos_spd(uint16_t id, float pos, float spd);
+DmMotorStatus d_dm_set_spd(uint16_t id, float spd);
+DmMotorStatus d_dm_set_pos_spd_cur(uint16_t id, float pos, float spd, float cur);
 
-DmMotorErrorCode_e d_dm_get_feedback(uint16_t id, uint8_t feedback[8], uint32_t timeout_ms);
-DmMotorErrorCode_e d_dm_get_err_code(uint16_t id, uint8_t* err_code, uint32_t timeout_ms);
-DmMotorErrorCode_e d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms);
-DmMotorErrorCode_e d_dm_get_spd(uint16_t id, float* spd, uint32_t timeout_ms);
-DmMotorErrorCode_e d_dm_get_torque(uint16_t id, float* torque, uint32_t timeout_ms);
+DmMotorStatus d_dm_get_feedback(uint16_t id, uint8_t feedback[8], uint32_t timeout_ms);
+DmMotorStatus d_dm_get_err_code(uint16_t id, uint8_t* err_code, uint32_t timeout_ms);
+DmMotorStatus d_dm_get_pos(uint16_t id, float* pos, uint32_t timeout_ms);
+DmMotorStatus d_dm_get_spd(uint16_t id, float* spd, uint32_t timeout_ms);
+DmMotorStatus d_dm_get_torque(uint16_t id, float* torque, uint32_t timeout_ms);
 
-DmMotorErrorCode_e d_dm_request_feedback(uint16_t id);
-DmMotorErrorCode_e d_dm_update(DmMotorFeedback_t* feedback);
+DmMotorStatus d_dm_request_feedback(uint16_t id);
+DmMotorStatus d_dm_update(DmMotorFeedback* feedback);
 
 #endif

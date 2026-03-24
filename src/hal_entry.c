@@ -1,4 +1,3 @@
-#include "drive/d_dm_motor.h"
 #include "hal_data.h"
 
 // 工具库
@@ -28,7 +27,7 @@
 
 
 // 测试函数
-void fk_ik_test(WifiBtConnectInfo* info);
+void arm_test(WifiBtConnectInfo* info);
 
 #if (1 == BSP_MULTICORE_PROJECT) && BSP_TZ_SECURE_BUILD
 bsp_ipc_semaphore_handle_t g_core_start_semaphore =
@@ -47,7 +46,7 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     s_delay_ms_init(d_systick_get_ms);
 
     uart.init(UART7, uart7_rx_buf);
-    d_wifi_bt_init(UART6, STA, (const uint8_t*)"RENE:", 5);
+    wifi.init(UART6, STA, (const uint8_t*)"RENE:", 5);
     can.init();
 
     s_delay_ms(2000);
@@ -68,7 +67,7 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     strcpy(info->ip, "192.168.169.1");
     info->remote_port = 8080;
     info->local_port = 5000;
-    if(d_wifi_bt_join_ap(info->ssid, info->password) != WIFI_BT_SUCCESS) printf("WiFi 连接失败!\r\n");
+    if(wifi.join_ap(info->ssid, info->password) != wifi.OK) printf("WiFi 连接失败!\r\n");
     else printf("WiFi 连接成功!\r\n");
 }
 
@@ -93,7 +92,7 @@ void hal_entry(void) {
     static ms_t dm_update_task = 0;
     static ms_t printf_task = 0;
 
-    static DmMotorFeedback_t feedback;
+    static DmMotorFeedback feedback;
     static bool dm_req_sent = false;
     static uint16_t feedback_fps = 0;
 
@@ -101,29 +100,29 @@ void hal_entry(void) {
     static uint16_t frame_len = 0;
     static uint16_t frame_fps = 0;
 
-    static WifiBtErrorCode net_status = WIFI_BT_SUCCESS;
+    static WifiBtStatus net_status;
     static bool test = false;
 
     while(1) {
-        net_status = d_wifi_bt_heartbeat(&info, 2000);
-        if(net_status == WIFI_BT_SUCCESS) {
+        net_status = wifi.heartbeat(&info, 2000);
+        if(net_status == wifi.OK) {
             if(s_nb_delay_ms(&dm_update_task, 20)) {
-                d_dm_request_feedback(0x01);
+                dm.request_feedback(0x01);
                 dm_req_sent = true;
             }
             if(dm_req_sent) {
-                if(d_dm_update(&feedback) == DM_MOTOR_SUCCESS) {
+                if(dm.update(&feedback) == dm.OK) {
                     dm_req_sent = false;
                     ++feedback_fps;
                 }
             }
             if(test == false) {
-                fk_ik_test(&info);
+                arm_test(&info);
                 test = true;
             }
         }
 
-        if(d_wifi_bt_process(&frame_buf, &frame_len) == WIFI_BT_FRAME_READY) {
+        if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
             ++frame_fps;
         }
 
@@ -184,7 +183,7 @@ FSP_CPP_FOOTER
 
 #endif
 
-void fk_ik_test(WifiBtConnectInfo* info) {
+void arm_test(WifiBtConnectInfo* info) {
     float dx = 0.244004f;
     float dy = 0.059971f;
     float phi = atan2f(dy, dx);
@@ -217,13 +216,13 @@ void fk_ik_test(WifiBtConnectInfo* info) {
     printf("IK Joints: %f, %f, %f, %f, %f, %f\r\n", ik_joints.joint_1, ik_joints.joint_2, ik_joints.joint_3, ik_joints.joint_4, ik_joints.joint_5, ik_joints.joint_6);
     char joint_buf[128];
     int len = snprintf(joint_buf, sizeof(joint_buf), "IK Joints: %f %f %f %f %f %f", ik_joints.joint_1, ik_joints.joint_2, ik_joints.joint_3, ik_joints.joint_4, ik_joints.joint_5, ik_joints.joint_6);
-    d_wifi_bt_send(*info, joint_buf, (uint16_t)len);
+    wifi.send(*info, joint_buf, (uint16_t)len);
 
     Pose verify_pose;
     arm.fk(&ik_joints, &verify_pose);
     printf("Position error: %f %f %f\r\n", pose.position.x - verify_pose.position.x, pose.position.y - verify_pose.position.y, pose.position.z - verify_pose.position.z);
     len = snprintf(joint_buf, sizeof(joint_buf), "Position error: %f %f %f", pose.position.x - verify_pose.position.x, pose.position.y - verify_pose.position.y, pose.position.z - verify_pose.position.z);
-    d_wifi_bt_send(*info, joint_buf, (uint16_t)len);
+    wifi.send(*info, joint_buf, (uint16_t)len);
 
     dm.set_pos_spd(0x01, ik_joints.joint_1, 1.57f);
     dm.set_pos_spd(0x02, ik_joints.joint_2, 1.57f);
