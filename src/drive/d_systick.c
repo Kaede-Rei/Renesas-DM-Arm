@@ -1,8 +1,14 @@
 #include "d_systick.h"
-#include "ra/fsp/src/bsp/mcu/all/bsp_common.h"
 
 
 // ! ========================= 变 量 声 明 ========================= ! //
+
+const struct SystickInstance d_systick_instance = {
+    .init = d_systick_init,
+    .get_ms = d_systick_get_ms,
+    .get_s = d_systick_get_s,
+    .is_timeout = d_systick_is_timeout
+};
 
 static volatile ms_t _ms = 0;
 
