@@ -20,7 +20,7 @@
 // 服务层
 #include "service/s_delay.h"
 #include "service/s_fk_ik.h"
-// #include "service/s_comms.h"
+#include "service/s_comms.h"
 
 // 应用层
 
@@ -96,9 +96,9 @@ void hal_entry(void) {
     static bool dm_req_sent = false;
     static uint16_t feedback_fps = 0;
 
+    static WeedData weed_data;
     static uint8_t* frame_buf = NULL;
     static uint16_t frame_len = 0;
-    static uint16_t frame_fps = 0;
 
     static WifiBtStatus net_status;
     static bool test = false;
@@ -123,19 +123,13 @@ void hal_entry(void) {
         }
 
         if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
-            ++frame_fps;
+            comms.process(frame_buf, frame_len);
         }
 
         if(s_nb_delay_ms(&printf_task, 1000)) {
-            static char print_buf[WIFI_BT_FRAME_BUF_SIZE + 1];
-            uint16_t copy_len = (frame_len < WIFI_BT_FRAME_BUF_SIZE) ? frame_len : WIFI_BT_FRAME_BUF_SIZE;
+            comms.get_weed(&weed_data);
+            printf("Net Status: %d, DM FPS: %d, WEED: %u, %u, %u, %.2f\r\n", net_status, feedback_fps, weed_data.id, weed_data.x, weed_data.y, weed_data.confidence);
 
-            memcpy(print_buf, frame_buf, copy_len);
-            print_buf[copy_len] = '\0';
-            printf("收到: %s，帧数: %u\r\n", print_buf, frame_fps);
-            printf("反馈帧数: %u\r\n", feedback_fps);
-
-            frame_fps = 0;
             feedback_fps = 0;
         }
     }

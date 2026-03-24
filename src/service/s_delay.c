@@ -64,12 +64,11 @@ void s_delay_s(ms_t s) {
  * @return bool -  true:时间到, false:未到
  */
 bool s_nb_delay_ms(ms_t* start, ms_t interval_ms) {
-    if(delay_ops.get_ms == 0) return false;
+    if(start == 0 || delay_ops.get_ms == 0) return false;
 
-    static bool initialized = false;
-    if(*start == 0 && !initialized) {
-        *start = delay_ops.get_ms();
-        initialized = true;
+    ms_t now = delay_ops.get_ms();
+    if(*start == 0) {
+        *start = (now == 0) ? 1 : now;
         return false;
     }
 
@@ -106,12 +105,11 @@ void s_delay_us(us_t us) {
  * @return bool -  true:时间到, false:未到
  */
 bool s_nb_delay_us(us_t* start, us_t interval_us) {
-    if(delay_ops.get_us == 0) return false;
+    if(start == 0 || delay_ops.get_us == 0) return false;
 
-    static bool initialized = false;
-    if(*start == 0 && !initialized) {
-        *start = delay_ops.get_us();
-        initialized = true;
+    us_t now = delay_ops.get_us();
+    if(*start == 0) {
+        *start = (now == 0) ? 1 : now;
         return false;
     }
 
