@@ -41,6 +41,7 @@ void s_delay_ms_init(ms_t(*get_ms)(void)) {
  * @return None
  */
 void s_delay_ms(ms_t ms) {
+    if(delay_ops.get_ms == 0) return;
     ms_t start = delay_ops.get_ms();
     while(!ms_timeout(start, ms));
 }
@@ -51,6 +52,7 @@ void s_delay_ms(ms_t ms) {
  * @return None
  */
 void s_delay_s(ms_t s) {
+    if(delay_ops.get_ms == 0) return;
     ms_t start = delay_ops.get_ms();
     while(!ms_timeout(start, s * 1000));
 }
@@ -62,10 +64,15 @@ void s_delay_s(ms_t s) {
  * @return bool -  true:时间到, false:未到
  */
 bool s_nb_delay_ms(ms_t* start, ms_t interval_ms) {
-    if(*start == 0) {
+    if(delay_ops.get_ms == 0) return false;
+
+    static bool initialized = false;
+    if(*start == 0 && !initialized) {
         *start = delay_ops.get_ms();
+        initialized = true;
         return false;
     }
+
     if(ms_timeout(*start, interval_ms)) {
         *start = 0;
         return true;
@@ -87,6 +94,7 @@ void s_delay_us_init(us_t(*get_us)(void)) {
  * @return None
  */
 void s_delay_us(us_t us) {
+    if(delay_ops.get_us == 0) return;
     us_t start = delay_ops.get_us();
     while(!us_timeout(start, us));
 }
@@ -98,10 +106,15 @@ void s_delay_us(us_t us) {
  * @return bool -  true:时间到, false:未到
  */
 bool s_nb_delay_us(us_t* start, us_t interval_us) {
-    if(*start == 0) {
+    if(delay_ops.get_us == 0) return false;
+
+    static bool initialized = false;
+    if(*start == 0 && !initialized) {
         *start = delay_ops.get_us();
+        initialized = true;
         return false;
     }
+
     if(us_timeout(*start, interval_us)) {
         *start = 0;
         return true;
@@ -118,13 +131,7 @@ bool s_nb_delay_us(us_t* start, us_t interval_us) {
  * @return true 表示已超时，false 表示未超时
  */
 static bool ms_timeout(ms_t start, ms_t timeout_ms) {
-    ms_t now = delay_ops.get_ms();
-    if(now >= start) {
-        return (now - start) >= timeout_ms ? true : false;
-    }
-    else {
-        return ((0xFFFFFFFFU - start) + now + 1) >= timeout_ms ? true : false;
-    }
+    return (ms_t)(delay_ops.get_ms() - start) >= timeout_ms;
 }
 
 /**
@@ -134,11 +141,5 @@ static bool ms_timeout(ms_t start, ms_t timeout_ms) {
  * @return true 表示已超时，false 表示未超时
  */
 static bool us_timeout(us_t start, us_t timeout_us) {
-    us_t now = delay_ops.get_us();
-    if(now >= start) {
-        return (now - start) >= timeout_us ? true : false;
-    }
-    else {
-        return ((0xFFFFFFFFU - start) + now + 1) >= timeout_us ? true : false;
-    }
+    return (us_t)(delay_ops.get_us() - start) >= timeout_us;
 }
