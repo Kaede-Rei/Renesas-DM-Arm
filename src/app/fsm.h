@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include "drive/d_wifi_bt.h"
+#include "drive/d_dm_motor.h"
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
@@ -75,5 +76,7 @@ typedef struct {
 void fsm_init(WifiBtConnectInfo* info);
 bool fsm_trigger(Event event, void* data);
 void fsm_process(void);
+
+void fsm_update_dm_feedback(const DmMotorFeedback feedback);
 
 #endif

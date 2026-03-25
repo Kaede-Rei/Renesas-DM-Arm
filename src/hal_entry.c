@@ -41,8 +41,7 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  * @brief 系统初始化函数
  * @note 该函数在 hal_entry() 中被调用，用于初始化系统资源和外设
  */
-void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info);
-void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
+static void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     if(systick.init() != FSP_SUCCESS) while(1);
     s_delay_ms_init(systick.get_ms);
 
@@ -112,7 +111,6 @@ void hal_entry(void) {
     static ms_t printf_task = 0;
 
     static DmMotorFeedback feedback;
-    static bool dm_req_sent = false;
     static uint16_t feedback_fps = 0;
 
     static WeedData weed_data;
@@ -129,13 +127,21 @@ void hal_entry(void) {
             if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
                 comms.process(frame_buf, frame_len);
                 comms.get_weed(&weed_data);
-                if(weed_data.confidence > 0.8) fsm_trigger(EVENT_START_SEARCH, &weed_data);
-                if(strcmp((const char*)frame_buf, "Laser OK") == 0) fsm_trigger(EVENT_LASER_COMPLETE, frame_buf);
+                if(weed_data.confidence > 0.8) {
+                    if(!fsm_trigger(EVENT_START_SEARCH, &weed_data)) {
+                        printf("[FSM] 无法触发事件：%d\r\n", EVENT_START_SEARCH);
+                    }
+                }
+                if(frame_len == 8 && memcmp((const char*)frame_buf, "Laser OK", 8) == 0) {
+                    if(!fsm_trigger(EVENT_LASER_COMPLETE, NULL)) {
+                        printf("[FSM] 无法触发事件：%d\r\n", EVENT_LASER_COMPLETE);
+                    }
+                }
             }
         }
 
-        if(dm_req_sent && (dm.update(&feedback) == dm.OK)) {
-            dm_req_sent = false;
+        while(dm.update(&feedback) == dm.OK) {
+            fsm_update_dm_feedback(feedback);
             ++feedback_fps;
         }
         if(s_nb_delay_ms(&dm_update_task, 20)) {
@@ -145,10 +151,9 @@ void hal_entry(void) {
             dm.request_feedback(0x04);
             dm.request_feedback(0x05);
             dm.request_feedback(0x06);
-            dm_req_sent = true;
         }
 
-        if(s_nb_delay_ms(&printf_task, 1000)) {
+        if(s_nb_delay_ms(&printf_task, 2000)) {
             printf("Net Status: %d, DM FPS: %d, WEED: %u, %.2f, %.2f, %.2f, %.2f\r\n", net_status, feedback_fps, weed_data.id, weed_data.x, weed_data.y, weed_data.z, weed_data.confidence);
 
             feedback_fps = 0;

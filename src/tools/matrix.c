@@ -321,7 +321,7 @@ MatrixErrorCode matrix_inverse(const Matrix* const m, Matrix* const out) {
     if(m == out) return MATRIX_INPLACE;
 
     unsigned int n = m->row;
-    matrix_create(aug, n, 2 * n);
+    float aug_data[n * 2 * n]; Matrix aug; matrix(&aug, n, 2 * n, aug_data);
 
     for(unsigned int i = 0; i < n; i++) {
         for(unsigned int j = 0; j < n; j++) {

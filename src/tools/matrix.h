@@ -54,7 +54,7 @@ typedef struct {
  * @note 创建后 name 就是可用的矩阵变量
  */
 #define matrix_create(name, row, col) \
-    float name##_data[row * col]; \
+    static float name##_data[row * col]; \
     Matrix name; \
     matrix(&name, row, col, name##_data)
 
@@ -66,7 +66,7 @@ typedef struct {
  * @note 创建后 name 就是可用的单位矩阵变量
  */
 #define matrix_identity_create(name, size) \
-    float name##_data[size * size]; \
+    static float name##_data[size * size]; \
     Matrix name; \
     matrix_identity(&name, size, name##_data)
 
