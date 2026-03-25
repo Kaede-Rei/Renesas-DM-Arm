@@ -5,9 +5,9 @@
 #include <stddef.h>
 #include <math.h>
 
+#include "drive/d_wifi_bt.h"
 #include "tools/matrix.h"
 
-#include "drive/d_wifi_bt.h"
 #include "drive/d_led.h"
 
 #include "service/s_comms.h"
@@ -24,8 +24,8 @@
 typedef struct {
     char* error;
 
+    WifiBtConnectInfo* wifi_info;
     WeedData weed;
-    WifiBtConnectInfo wifi_info;
     SixDofJoint ik_result;
 } FsmData;
 static FsmData fsm_data;
@@ -106,8 +106,9 @@ static void reset_fsm_data(void);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
-void fsm_init(void) {
+void fsm_init(WifiBtConnectInfo* info) {
     reset_fsm_data();
+    fsm_data.wifi_info = info;
 
     cur.msg.event = 0;
     cur.msg.data = NULL;
@@ -116,9 +117,13 @@ void fsm_init(void) {
     cur.s->entry();
 }
 
-void fsm_trigger(Event event, void* data) {
+bool fsm_trigger(Event event, void* data) {
+    if(cur.msg.event != EVENT_NONE) return false;
+
     cur.msg.event = event;
     cur.msg.data = data;
+
+    return true;
 }
 
 void fsm_process(void) {
@@ -151,7 +156,7 @@ static State* dispatch(void) {
         s = s->_parent_;
     }
 
-    return s;
+    return cur.s;
 }
 
 static State* find_lca(State* s1, State* s2) {
@@ -210,7 +215,9 @@ static void execute_action(void) {
 }
 
 static void reset_fsm_data(void) {
+    WifiBtConnectInfo* wifi_info = fsm_data.wifi_info;
     fsm_data = (FsmData){ 0 };
+    fsm_data.wifi_info = wifi_info;
 }
 
 // ! ========================= 状 态 实 现 ========================= ! //
@@ -303,16 +310,17 @@ static void action_searching(void) {
     aim_dir.z = fsm_data.weed.z - start_pose.position.z;
 
     vec3_normalize(&aim_dir, &aim_dir);
-    static Vector3 refer_dir = { 0.0f, 0.0f, 1.0f };
+    Vector3 refer_dir = { 0.0f, 0.0f, 1.0f };
     static float dot;
     vec3_dot(&aim_dir, &refer_dir, &dot);
-    if(dot > 0.95f) { refer_dir = (Vector3){ 0.0f, 1.0f, 0.0f }; }
+    if(fabsf(dot) > 0.95f) { refer_dir = (Vector3){ 0.0f, 1.0f, 0.0f }; }
 
     static Vector3 cross_x;
     vec3_cross(&aim_dir, &refer_dir, &cross_x);
     vec3_normalize(&cross_x, &cross_x);
     static Vector3 cross_y;
     vec3_cross(&aim_dir, &cross_x, &cross_y);
+    vec3_normalize(&cross_y, &cross_y);
 
     static Matrix R; float R_data[3 * 3]; matrix(&R, 3, 3, R_data);
     R.pdata[0 * 3 + 0] = cross_x.x; R.pdata[0 * 3 + 1] = cross_y.x; R.pdata[0 * 3 + 2] = aim_dir.x;
@@ -378,13 +386,7 @@ static State* handle_lasering(void) {
     }
 }
 static void entry_lasering(void) {
-    if(cur.msg.data) {
-        fsm_data.wifi_info = *(WifiBtConnectInfo*)cur.msg.data;
-        wifi.send(fsm_data.wifi_info, "Ready to Laser", strlen("Ready to Laser"));
-    }
-    else {
-        fsm_trigger(EVENT_DETECT_ERROR, "未提供网络连接信息");
-    }
+    wifi.send(*fsm_data.wifi_info, "Ready to Laser", strlen("Ready to Laser"));
 }
 static void exit_lasering(void) {}
 static void action_lasering(void) {

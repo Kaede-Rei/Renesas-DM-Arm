@@ -1,6 +1,10 @@
 #ifndef _fsm_h_
 #define _fsm_h_
 
+#include <stdbool.h>
+
+#include "drive/d_wifi_bt.h"
+
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 #define FSM_DEPTH 3
@@ -68,8 +72,8 @@ typedef struct {
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-void fsm_init(void);
-void fsm_trigger(Event event, void* data);
+void fsm_init(WifiBtConnectInfo* info);
+bool fsm_trigger(Event event, void* data);
 void fsm_process(void);
 
 #endif

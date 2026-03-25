@@ -79,7 +79,7 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     };
     arm.init(&mdh);
 
-    fsm_init();
+    fsm_init(info);
 }
 
 /*******************************************************************************************************************//**
