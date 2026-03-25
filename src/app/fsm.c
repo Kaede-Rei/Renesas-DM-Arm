@@ -5,11 +5,25 @@
 #include <stddef.h>
 #include <math.h>
 
-#include "drive/d_dm_motor.h"
+#include "drive/d_wifi_bt.h"
 
-// #include "service/s_delay.h"
+#include "service/s_comms.h"
+#include "service/s_delay.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //
+
+/**
+ * @brief FSM 内部数据结构体，用于状态机全局数据存储
+ * @param weed 当前检测到的杂草数据
+ * @param error 当前错误信息字符串
+ */
+typedef struct {
+    char* error;
+
+    WeedData weed;
+    WifiBtConnectInfo wifi_info;
+} FsmData;
+static FsmData fsm_data;
 
 /**
  * @brief FSM 状态结构体
@@ -56,10 +70,6 @@ static struct {
     FsmMsg msg;
 } cur;
 
-static struct {
-    WifiBtConnectInfo info;
-} fsm_data;
-
 // ! ========================= 状 态 机 声 明 ========================= ! //
 
 #define SX(name, parent) \
@@ -87,40 +97,38 @@ static State* find_lca(State* s1, State* s2);
 static void exit_up_to(State* from, State* to);
 static void enter_down_to(State* from, State* to);
 static void execute_action(void);
+static void reset_fsm_data(void);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
-#define SX(n, p) (void)state_##n;
-void fsm_init(WifiBtConnectInfo* info) {
+void fsm_init(void) {
+    reset_fsm_data();
+
     cur.msg.event = 0;
     cur.msg.data = NULL;
     cur.s = &state_init;
 
-    fsm_data.info = *info;
-
-    STATE_TABLE
+    cur.s->entry();
 }
-#undef SX
 
 void fsm_trigger(Event event, void* data) {
     cur.msg.event = event;
     cur.msg.data = data;
 }
 
-
 void fsm_process(void) {
-    if(cur.msg.event == EVENT_NONE) {
-        execute_action();
-        return;
-    }
+    if(cur.msg.event != EVENT_NONE) {
+        State* next = dispatch();
 
-    State* next = dispatch();
-    if(next != cur.s) {
-        State* lca = find_lca(cur.s, next);
-        exit_up_to(cur.s, lca);
-        enter_down_to(lca, next);
-        cur.s = next;
+        if(next != cur.s) {
+            State* lca = find_lca(cur.s, next);
+            exit_up_to(cur.s, lca);
+            enter_down_to(lca, next);
+            cur.s = next;
+        }
+
         cur.msg.event = EVENT_NONE;
+        cur.msg.data = NULL;
     }
 
     execute_action();
@@ -129,15 +137,16 @@ void fsm_process(void) {
 // ! ========================= 状 态 机 实 现 ========================= ! //
 
 static State* dispatch(void) {
-    while(cur.s) {
-        if(cur.s->handle) {
-            State* next = cur.s->handle();
+    State* s = cur.s;
+    while(s) {
+        if(s->handle) {
+            State* next = s->handle();
             if(next) return next;
         }
-        cur.s = cur.s->_parent_;
+        s = s->_parent_;
     }
 
-    return cur.s;
+    return s;
 }
 
 static State* find_lca(State* s1, State* s2) {
@@ -154,7 +163,7 @@ static State* find_lca(State* s1, State* s2) {
     State* shallower = depth1 > depth2 ? s2 : s1;
     int diff = (int)fabs((double)(depth1 - depth2));
 
-    while(--diff) { deeper = deeper->_parent_; }
+    while(diff--) { deeper = deeper->_parent_; }
     while(deeper != shallower) {
         deeper = deeper->_parent_;
         shallower = shallower->_parent_;
@@ -176,7 +185,7 @@ static void enter_down_to(State* from, State* to) {
     int depth = 0;
     State* s = to;
 
-    while(s && s != from) {
+    while(s && s != from && depth < FSM_DEPTH) {
         path[depth++] = s;
         s = s->_parent_;
     }
@@ -195,107 +204,163 @@ static void execute_action(void) {
     }
 }
 
-// ! ========================= 状 态 处 理 函 数 实 现 ========================= ! //
+static void reset_fsm_data(void) {
+    fsm_data = (FsmData){ 0 };
+}
 
+// ! ========================= 状 态 实 现 ========================= ! //
+
+
+/**
+ * @brief init 状态
+ */
 static State* handle_init(void) {
     switch(cur.msg.event) {
-        case EVENT_START_SEARCH:
-            return &state_searching;
+        case EVENT_INIT_COMPLETE:
+            return &state_idle;
         default:
             return NULL;
     }
 }
+static void entry_init(void) {
+    reset_fsm_data();
+
+    fsm_trigger(EVENT_INIT_COMPLETE, NULL);
+}
+static void exit_init(void) {}
+static void action_init(void) {}
+
+
+/**
+ * @brief normal 状态
+ */
 static State* handle_normal(void) {
     switch(cur.msg.event) {
+        case EVENT_DETECT_ERROR:
+            return &state_error;
+        default:
+            return NULL;
+    }
+}
+static void entry_normal(void) {}
+static void exit_normal(void) {}
+static void action_normal(void) {}
+
+
+/**
+ * @brief idle 状态
+ */
+static State* handle_idle(void) {
+    switch(cur.msg.event) {
         case EVENT_START_SEARCH:
             return &state_searching;
         default:
             return NULL;
     }
 }
-static State* handle_idle(void) {
-    switch(cur.msg.event) {
-        default:
-            return NULL;
-    }
-}
+static void entry_idle(void) {}
+static void exit_idle(void) {}
+static void action_idle(void) {}
+
+
+/**
+ * @brief searching 状态
+ */
 static State* handle_searching(void) {
     switch(cur.msg.event) {
+        case EVENT_SEARCH_COMPLETE:
+            return &state_ik_pose;
         default:
             return NULL;
     }
 }
+static void entry_searching(void) {
+    if(cur.msg.data) {
+        fsm_data.weed = *(WeedData*)cur.msg.data;
+        printf("[FSM] 捕获目标 ID：%d，坐标：x=%.2f, y=%.2f, z=%.2f, confidence=%.2f\r\n", fsm_data.weed.id, fsm_data.weed.x, fsm_data.weed.y, fsm_data.weed.z, fsm_data.weed.confidence);
+    }
+}
+static void exit_searching(void) {}
+static void action_searching(void) {
+
+}
+
+
+/**
+ * @brief ik_pose 状态
+ */
 static State* handle_ik_pose(void) {
     switch(cur.msg.event) {
+        case EVENT_IK_COMPLETE:
+            return &state_moving;
         default:
             return NULL;
     }
 }
+static void entry_ik_pose(void) {}
+static void exit_ik_pose(void) {}
+static void action_ik_pose(void) {}
+
+
+/**
+ * @brief moving 状态
+ */
 static State* handle_moving(void) {
     switch(cur.msg.event) {
+        case EVENT_MOVE_COMPLETE:
+            return &state_lasering;
         default:
             return NULL;
     }
 }
+static void entry_moving(void) {}
+static void exit_moving(void) {}
+static void action_moving(void) {}
+
+
+/**
+ * @brief lasering 状态
+ */
 static State* handle_lasering(void) {
     switch(cur.msg.event) {
+        case EVENT_LASER_COMPLETE:
+            return &state_idle;
         default:
             return NULL;
     }
 }
+static void entry_lasering(void) {
+    if(cur.msg.data) {
+        fsm_data.wifi_info = *(WifiBtConnectInfo*)cur.msg.data;
+        wifi.send(fsm_data.wifi_info, "Ready to Laser", strlen("Ready to Laser"));
+    }
+
+}
+static void exit_lasering(void) {}
+static void action_lasering(void) {
+    static ms_t laser_timer = 0;
+    if(s_nb_delay_ms(&laser_timer, 5000)) {
+        fsm_trigger(EVENT_LASER_COMPLETE, NULL);
+    }
+}
+
+
+/**
+ * @brief error 状态
+ */
 static State* handle_error(void) {
     switch(cur.msg.event) {
+        case EVENT_ERROR_COMPLETE:
+            return &state_init;
         default:
             return NULL;
     }
 }
-
-// ! ========================= 状 态 进 入 函 数 实 现 ========================= ! //
-
-static void entry_init(void) {
-    dm.enable(0x01);
-    dm.enable(0x02);
-    dm.enable(0x03);
-    dm.enable(0x04);
-    dm.enable(0x05);
-    dm.enable(0x06);
-
-    fsm_data.info.ssid = "K230";
-    fsm_data.info.password = "12345678";
-    fsm_data.info.protocol = UDP;
-    fsm_data.info.role = Client;
-    strcpy(fsm_data.info.ip, "192.168.169.1");
-    fsm_data.info.remote_port = 8080;
-    fsm_data.info.local_port = 5000;
-    if(wifi.join_ap(fsm_data.info.ssid, fsm_data.info.password) != wifi.OK) printf("WiFi 连接失败!\r\n");
-    else printf("WiFi 连接成功!\r\n");
+static void entry_error(void) {
+    if(cur.msg.data) {
+        fsm_data.error = (char*)cur.msg.data;
+        printf("[FSM] 错误发生：%s\r\n", fsm_data.error);
+    }
 }
-static void entry_normal(void) {}
-static void entry_idle(void) {}
-static void entry_searching(void) {}
-static void entry_ik_pose(void) {}
-static void entry_moving(void) {}
-static void entry_lasering(void) {}
-static void entry_error(void) {}
-
-// ! ========================= 状 态 退 出 函 数 实 现 ========================= ! //
-
-static void exit_init(void) {}
-static void exit_normal(void) {}
-static void exit_idle(void) {}
-static void exit_searching(void) {}
-static void exit_ik_pose(void) {}
-static void exit_moving(void) {}
-static void exit_lasering(void) {}
 static void exit_error(void) {}
-
-// ! ========================= 状 态 持 续 函 数 实 现 ========================= ! //
-
-static void action_init(void) {}
-static void action_normal(void) {}
-static void action_idle(void) {}
-static void action_searching(void) {}
-static void action_ik_pose(void) {}
-static void action_moving(void) {}
-static void action_lasering(void) {}
 static void action_error(void) {}

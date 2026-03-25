@@ -23,7 +23,7 @@
 #include "service/s_comms.h"
 
 // 应用层
-
+#include "app/fsm.h"
 
 
 // 测试函数
@@ -40,8 +40,8 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  * @brief 系统初始化函数
  * @note 该函数在 hal_entry() 中被调用，用于初始化系统资源和外设
  */
-void sys_init(RingBuf* uart7_rx_buf);
-void sys_init(RingBuf* uart7_rx_buf) {
+void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info);
+void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     if(systick.init() != FSP_SUCCESS) while(1);
     s_delay_ms_init(systick.get_ms);
 
@@ -49,9 +49,36 @@ void sys_init(RingBuf* uart7_rx_buf) {
     wifi.init(UART6, STA, (const uint8_t*)"RENE:", 5);
     can.init();
 
+    dm.enable(0x01);
+    dm.enable(0x02);
+    dm.enable(0x03);
+    dm.enable(0x04);
+    dm.enable(0x05);
+    dm.enable(0x06);
+
     s_delay_ms(2000);
     led.on();
     printf("System Init Complete!\r\n");
+
+    if(wifi.join_ap(info->ssid, info->password) != wifi.OK) printf("WiFi 连接失败!\r\n");
+    else printf("WiFi 连接成功!\r\n");
+
+    float dx = 0.244004f;
+    float dy = 0.059971f;
+    float phi = atan2f(dy, dx);
+    float a3 = sqrtf(powf(dx, 2) + powf(dy, 2));
+    static ArmMDH mdh;
+    mdh = (ArmMDH){
+        .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
+        .a = { 0, 0.02f, 0.264f, a3, 0.061868f, 0 },
+        .d = { 0.1f, 0, 0, 0, 0, 0.19f },
+        .offset = { M_PI / 2, M_PI, phi - M_PI, -phi, M_PI / 2, 0 },
+        .qmin = { -2.0944f, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
+        .qmax = { 2.0944f, M_PI, 1.5f * M_PI, M_PI / 2, M_PI / 2, M_PI }
+    };
+    arm.init(&mdh);
+
+    fsm_init();
 }
 
 /*******************************************************************************************************************//**
@@ -69,8 +96,16 @@ void hal_entry(void) {
     static RingBuf buf7;
     RingBufCreate(&buf7, uart7_buffer, sizeof(uart7_buffer), 1);
 
-    static WifiBtConnectInfo info;
-    sys_init(&buf7);
+    static WifiBtConnectInfo info = {
+        .ssid = "K230",
+        .password = "12345678",
+        .protocol = UDP,
+        .role = Client,
+        .ip = "192.168.169.1",
+        .remote_port = 8080,
+        .local_port = 5000
+    };
+    sys_init(&buf7, &info);
 
     static ms_t dm_update_task = 0;
     static ms_t printf_task = 0;
@@ -84,38 +119,42 @@ void hal_entry(void) {
     static uint16_t frame_len = 0;
 
     static WifiBtStatus net_status;
-    static bool test = false;
 
     while(1) {
+        fsm_process();
+
         net_status = wifi.heartbeat(&info, 2000);
         if(net_status == wifi.OK) {
-            if(s_nb_delay_ms(&dm_update_task, 20)) {
-                dm.request_feedback(0x01);
-                dm_req_sent = true;
-            }
-            if(dm_req_sent) {
-                if(dm.update(&feedback) == dm.OK) {
-                    dm_req_sent = false;
-                    ++feedback_fps;
-                }
-            }
-            if(test == false) {
-                arm_test(&info);
-                test = true;
+            if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
+                comms.process(frame_buf, frame_len);
+                comms.get_weed(&weed_data);
+                if(weed_data.confidence > 0.8) fsm_trigger(EVENT_START_SEARCH, &weed_data);
+                if(strcmp((const char*)frame_buf, "Laser OK") == 0) fsm_trigger(EVENT_LASER_COMPLETE, frame_buf);
             }
         }
 
-        if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
-            comms.process(frame_buf, frame_len);
+        if(dm_req_sent && (dm.update(&feedback) == dm.OK)) {
+            dm_req_sent = false;
+            ++feedback_fps;
+        }
+        if(s_nb_delay_ms(&dm_update_task, 20)) {
+            dm.request_feedback(0x01);
+            dm.request_feedback(0x02);
+            dm.request_feedback(0x03);
+            dm.request_feedback(0x04);
+            dm.request_feedback(0x05);
+            dm.request_feedback(0x06);
+            dm_req_sent = true;
         }
 
         if(s_nb_delay_ms(&printf_task, 1000)) {
-            comms.get_weed(&weed_data);
             printf("Net Status: %d, DM FPS: %d, WEED: %u, %.2f, %.2f, %.2f, %.2f\r\n", net_status, feedback_fps, weed_data.id, weed_data.x, weed_data.y, weed_data.z, weed_data.confidence);
 
             feedback_fps = 0;
         }
     }
+
+
 
     /* Wake up 2nd core if this is first core and we are inside a multicore project. */
 #if (0 == _RA_CORE) && (1 == BSP_MULTICORE_PROJECT) && !BSP_TZ_NONSECURE_BUILD
@@ -161,21 +200,6 @@ FSP_CPP_FOOTER
 #endif
 
 void arm_test(WifiBtConnectInfo* info) {
-    float dx = 0.244004f;
-    float dy = 0.059971f;
-    float phi = atan2f(dy, dx);
-    float a3 = sqrtf(powf(dx, 2) + powf(dy, 2));
-    static ArmMDH mdh;
-    mdh = (ArmMDH){
-        .alpha = { 0, -M_PI / 2, M_PI, 0, M_PI / 2, M_PI / 2 },
-        .a = { 0, 0.02f, 0.264f, a3, 0.061868f, 0 },
-        .d = { 0.1f, 0, 0, 0, 0, 0.19f },
-        .offset = { M_PI / 2, M_PI, phi - M_PI, -phi, M_PI / 2, 0 },
-        .qmin = { -2.0944f, 0, 0, -M_PI / 2, -M_PI / 2, -M_PI },
-        .qmax = { 2.0944f, M_PI, 1.5f * M_PI, M_PI / 2, M_PI / 2, M_PI }
-    };
-    arm.init(&mdh);
-
     SixDofJoint joints = { 0.0f, 0.0f, 0.01f, 0.0f, 0.0f, 0.0f };
     Pose pose;
     arm.fk(&joints, &pose);

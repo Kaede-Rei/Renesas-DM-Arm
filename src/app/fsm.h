@@ -1,15 +1,13 @@
 #ifndef _fsm_h_
 #define _fsm_h_
 
-#include "drive/d_wifi_bt.h"
-
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 #define FSM_DEPTH 3
 
 /**
  * @brief FSM 状态表(name, parent)，由 X-Macro 定义，方便维护和扩展
- *  /
+ * null
  *  ├── normal
  *  │   ├── idle
  *  │   ├── searching
@@ -20,14 +18,14 @@
  *  └── error
  */
 #define STATE_TABLE \
-    SX(init,        0)  \
-    SX(normal,      0)  \
+    SX(init,        NULL)  \
+    SX(normal,      NULL)  \
         SX(idle,        &state_normal)  \
         SX(searching,   &state_normal)  \
         SX(ik_pose,     &state_normal)  \
         SX(moving,      &state_normal)  \
         SX(lasering,    &state_normal)  \
-    SX(error,       0)  \
+    SX(error,       NULL)  \
 
 /**
  * @brief FSM 事件表(name, value)，由 X-Macro 定义，方便维护和扩展
@@ -39,18 +37,20 @@
  * @param DETECT_ERROR 发现错误事件
  */
 #define EVENT_TABLE \
-    EX(NONE, 0) \
-    EX(START_SEARCH, 1) \
-    EX(SEARCH_COMPLETE, 2) \
-    EX(IK_COMPLETE, 3) \
-    EX(MOVE_COMPLETE, 4) \
-    EX(LASER_COMPLETE, 5) \
-    EX(DETECT_ERROR, 6) \
+    EX(NONE) \
+    EX(INIT_COMPLETE) \
+    EX(START_SEARCH) \
+    EX(SEARCH_COMPLETE) \
+    EX(IK_COMPLETE) \
+    EX(MOVE_COMPLETE) \
+    EX(LASER_COMPLETE) \
+    EX(DETECT_ERROR) \
+    EX(ERROR_COMPLETE) \
 
 /**
  * @brief FSM 事件枚举类型，由 X-Macro 自动生成，表示状态机中的各种事件
  */
-#define EX(name, value) EVENT_##name = value, 
+#define EX(name) EVENT_##name,
 typedef enum {
     EVENT_TABLE
 } Event;
@@ -68,7 +68,7 @@ typedef struct {
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-void fsm_init(WifiBtConnectInfo* info);
+void fsm_init(void);
 void fsm_trigger(Event event, void* data);
 void fsm_process(void);
 
