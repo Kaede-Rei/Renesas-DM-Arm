@@ -37,6 +37,12 @@ typedef struct {
     unsigned int col;
 } Matrix;
 
+/**
+ * @brief 3D 向量结构体，包含 x、y、z 三个分量
+ * @param x 向量的 x 分量
+ * @param y 向量的 y 分量
+ * @param z 向量的 z 分量
+ */
 typedef struct {
     float x;
     float y;

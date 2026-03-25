@@ -75,6 +75,11 @@ struct State {
     State* _parent_;
 };
 
+/**
+ * @brief FSM 当前状态和事件消息结构体，包含当前状态指针和当前事件消息
+ * @param s 当前状态指针
+ * @param msg 当前事件消息，包含事件类型和事件数据指针
+ */
 static struct {
     State* s;
     FsmMsg msg;
@@ -112,6 +117,10 @@ static bool event_filter(Event event);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
+/**
+ * @brief FSM 初始化函数，设置初始状态和数据
+ * @param info WiFi 连接信息指针，用于 FSM 内部使用
+ */
 void fsm_init(WifiBtConnectInfo* info) {
     reset_fsm_data();
     fsm_data.wifi_info = info;
@@ -123,6 +132,12 @@ void fsm_init(WifiBtConnectInfo* info) {
     cur.s->entry();
 }
 
+/**
+ * @brief FSM 事件触发函数，接受一个事件和可选的数据指针，尝试触发事件并改变状态
+ * @param event 事件类型，使用 Event 枚举表示
+ * @param data 事件数据指针，可以指向任何类型的数据，根据事件需要进行传递
+ * @return 如果事件成功触发并处理返回 true，否则返回 false（例如当前有未处理的事件或事件被过滤掉）
+ */
 bool fsm_trigger(Event event, void* data) {
     if(cur.msg.event != EVENT_NONE) return false;
     if(event_filter(event) == false) return false;
@@ -133,6 +148,10 @@ bool fsm_trigger(Event event, void* data) {
     return true;
 }
 
+/**
+ * @brief FSM 处理函数，应该在主循环中定期调用，用于处理当前事件并执行状态转换和动作
+ * @note 该函数会检查当前事件，调用状态的事件处理函数进行状态转换，并执行相应的进入、退出和持续动作
+ */
 void fsm_process(void) {
     if(cur.msg.event != EVENT_NONE) {
         State* next = dispatch();
@@ -151,6 +170,11 @@ void fsm_process(void) {
     execute_action();
 }
 
+/**
+ * @brief FSM 更新 DM 电机反馈数据函数，应该在接收到 DM 电机反馈时调用，用于更新 FSM 内部的电机反馈数据
+ * @param feedback DM 电机反馈数据结构体，包含电机 ID、位置、速度等信息
+ * @note 该函数会根据电机 ID 更新对应的电机反馈数据，并标记该数据为有效
+ */
 void fsm_update_dm_feedback(const DmMotorFeedback feedback) {
     if(feedback.id >= 1 && feedback.id <= 6) {
         fsm_data.dm_fb[feedback.id] = feedback;
@@ -160,6 +184,10 @@ void fsm_update_dm_feedback(const DmMotorFeedback feedback) {
 
 // ! ========================= 状 态 机 实 现 ========================= ! //
 
+/**
+ * @brief FSM 调度函数，负责根据当前事件在状态层次结构中查找处理该事件的状态，并返回下一个状态指针
+ * @return 下一个状态指针，如果没有状态处理该事件则返回当前状态指针
+ */
 static State* dispatch(void) {
     State* s = cur.s;
     while(s) {
@@ -173,6 +201,12 @@ static State* dispatch(void) {
     return cur.s;
 }
 
+/**
+ * @brief 查找两个状态的最近公共祖先状态指针
+ * @param s1 状态指针 1
+ * @param s2 状态指针 2
+ * @return 最近公共祖先状态指针，如果没有公共祖先则返回 NULL
+ */
 static State* find_lca(State* s1, State* s2) {
     if(!s1 || !s2) return NULL;
 
@@ -196,6 +230,11 @@ static State* find_lca(State* s1, State* s2) {
     return deeper;
 }
 
+/**
+ * @brief 从当前状态退出到目标状态，调用沿途状态的退出函数
+ * @param from 当前状态指针
+ * @param to 目标状态指针
+ */
 static void exit_up_to(State* from, State* to) {
     State* s = from;
     while(s && s != to) {
@@ -204,6 +243,11 @@ static void exit_up_to(State* from, State* to) {
     }
 }
 
+/**
+ * @brief 从目标状态进入到当前状态，调用沿途状态的进入函数
+ * @param from 当前状态指针
+ * @param to 目标状态指针
+ */
 static void enter_down_to(State* from, State* to) {
     State* path[FSM_DEPTH];
     int depth = 0;
@@ -220,6 +264,10 @@ static void enter_down_to(State* from, State* to) {
     }
 }
 
+/**
+ * @brief 执行当前状态的持续动作函数，应该在状态机处理函数中定期调用
+ * @note 该函数会从当前状态开始，沿着父状态链向上调用每个状态的持续动作函数，直到没有父状态为止
+ */
 static void execute_action(void) {
     State* s = cur.s;
     while(s) {
@@ -228,12 +276,21 @@ static void execute_action(void) {
     }
 }
 
+/**
+ * @brief 重置 FSM 内部数据函数，应该在 FSM 初始化或进入特定状态时调用，用于清除 FSM 内部数据并重置为初始状态
+ * @note 该函数会保留 WiFi 连接信息指针，但会清除其他数据字段
+ */
 static void reset_fsm_data(void) {
     WifiBtConnectInfo* wifi_info = fsm_data.wifi_info;
     fsm_data = (FsmData){ 0 };
     fsm_data.wifi_info = wifi_info;
 }
 
+/**
+ * @brief FSM 事件过滤函数，应该在事件触发函数中调用，用于根据当前状态和事件类型决定是否允许触发该事件
+ * @param event 事件类型，使用 Event 枚举表示
+ * @return 如果事件被允许触发返回 true，否则返回 false（例如某些事件在特定状态下无效或被忽略）
+ */
 static bool event_filter(Event event) {
     State* s = cur.s;
     while(s) {
