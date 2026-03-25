@@ -37,6 +37,12 @@ typedef struct {
     unsigned int col;
 } Matrix;
 
+typedef struct {
+    float x;
+    float y;
+    float z;
+} Vector3;
+
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
 /**
@@ -79,5 +85,17 @@ MatrixErrorCode matrix_to_upper_triangular(const Matrix* const m, Matrix* const 
 MatrixErrorCode matrix_to_lower_triangular(const Matrix* const m, Matrix* const out);
 MatrixErrorCode matrix_determinant(const Matrix* const m, float* out);
 MatrixErrorCode matrix_inverse(const Matrix* const m, Matrix* const out);
+
+MatrixErrorCode quat_normalize(const float quat[4], float out[4]);
+MatrixErrorCode matrix_to_quat(const Matrix* const R, float quat[4]);
+MatrixErrorCode quat_to_matrix(const float quat[4], Matrix* const R);
+
+MatrixErrorCode vec3_add(const Vector3* const a, const Vector3* const b, Vector3* out);
+MatrixErrorCode vec3_sub(const Vector3* const a, const Vector3* const b, Vector3* out);
+MatrixErrorCode vec3_scalar_mul(const Vector3* const v, float scalar, Vector3* out);
+MatrixErrorCode vec3_norm(const Vector3* const v, float* out);
+MatrixErrorCode vec3_normalize(const Vector3* const v, Vector3* out);
+MatrixErrorCode vec3_dot(const Vector3* const a, const Vector3* const b, float* out);
+MatrixErrorCode vec3_cross(const Vector3* const a, const Vector3* const b, Vector3* out);
 
 #endif

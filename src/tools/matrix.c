@@ -379,6 +379,161 @@ MatrixErrorCode matrix_inverse(const Matrix* const m, Matrix* const out) {
     return MATRIX_SUCCESS;
 }
 
+MatrixErrorCode quat_normalize(const float quat[4], float out[4]) {
+    if(quat == NULL || out == NULL) return MATRIX_INVALID;
+
+    float norm = sqrtf(quat[0] * quat[0] + quat[1] * quat[1] + quat[2] * quat[2] + quat[3] * quat[3]);
+    if(norm < 1e-8f) return MATRIX_ERROR;
+
+    out[0] = quat[0] / norm;
+    out[1] = quat[1] / norm;
+    out[2] = quat[2] / norm;
+    out[3] = quat[3] / norm;
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode matrix_to_quat(const Matrix* const R, float quat[4]) {
+    if(R == NULL || R->pdata == NULL || quat == NULL) return MATRIX_INVALID;
+    if(R->row != 3 || R->col != 3) return MATRIX_CANNOT_COMPUTE;
+
+    float trace = R->pdata[0 * 3 + 0] + R->pdata[1 * 3 + 1] + R->pdata[2 * 3 + 2];
+    float S, qw, qx, qy, qz;
+
+    if(trace > 0) {
+        S = 2 * sqrtf(trace + 1.0f);
+        qw = 0.25f * S;
+        qx = (R->pdata[2 * 3 + 1] - R->pdata[1 * 3 + 2]) / S;
+        qy = (R->pdata[0 * 3 + 2] - R->pdata[2 * 3 + 0]) / S;
+        qz = (R->pdata[1 * 3 + 0] - R->pdata[0 * 3 + 1]) / S;
+    }
+    else {
+        if(R->pdata[0 * 3 + 0] > R->pdata[1 * 3 + 1] && R->pdata[0 * 3 + 0] > R->pdata[2 * 3 + 2]) {
+            S = 2 * sqrtf(1.0f + R->pdata[0 * 3 + 0] - R->pdata[1 * 3 + 1] - R->pdata[2 * 3 + 2]);
+            qw = R->pdata[2 * 3 + 1] - R->pdata[1 * 3 + 2] / S;
+            qx = 0.25f * S;
+            qy = (R->pdata[0 * 3 + 1] + R->pdata[1 * 3 + 0]) / S;
+            qz = (R->pdata[0 * 3 + 2] + R->pdata[2 * 3 + 0]) / S;
+        }
+        else if(R->pdata[1 * 3 + 1] > R->pdata[2 * 3 + 2]) {
+            S = 2 * sqrtf(1.0f + R->pdata[1 * 3 + 1] - R->pdata[0 * 3 + 0] - R->pdata[2 * 3 + 2]);
+            qw = (R->pdata[0 * 3 + 2] - R->pdata[2 * 3 + 0]) / S;
+            qx = (R->pdata[0 * 3 + 1] + R->pdata[1 * 3 + 0]) / S;
+            qy = 0.25f * S;
+            qz = (R->pdata[1 * 3 + 2] + R->pdata[2 * 3 + 1]) / S;
+        }
+        else {
+            S = 2 * sqrtf(1.0f + R->pdata[2 * 3 + 2] - R->pdata[0 * 3 + 0] - R->pdata[1 * 3 + 1]);
+            qw = (R->pdata[1 * 3 + 0] - R->pdata[0 * 3 + 1]) / S;
+            qx = (R->pdata[0 * 3 + 2] + R->pdata[2 * 3 + 0]) / S;
+            qy = (R->pdata[1 * 3 + 2] + R->pdata[2 * 3 + 1]) / S;
+            qz = 0.25f * S;
+        }
+    }
+
+    quat[0] = qw;
+    quat[1] = qx;
+    quat[2] = qy;
+    quat[3] = qz;
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode quat_to_matrix(const float quat[4], Matrix* const R) {
+    if(quat == NULL || R == NULL || R->pdata == NULL) return MATRIX_INVALID;
+    if(R->row != 3 || R->col != 3) return MATRIX_CANNOT_COMPUTE;
+    quat_normalize(quat, (float*)quat);
+
+    float w = quat[0], x = quat[1], y = quat[2], z = quat[3];
+    float xx = x * x, yy = y * y, zz = z * z;
+    float xy = x * y, xz = x * z, yz = y * z;
+    float wx = w * x, wy = w * y, wz = w * z;
+
+    float* r = R->pdata;
+    r[0 * 3 + 0] = 1.0f - 2.0f * (yy + zz);
+    r[0 * 3 + 1] = 2.0f * (xy - wz);
+    r[0 * 3 + 2] = 2.0f * (xz + wy);
+    r[1 * 3 + 0] = 2.0f * (xy + wz);
+    r[1 * 3 + 1] = 1.0f - 2.0f * (xx + zz);
+    r[1 * 3 + 2] = 2.0f * (yz - wx);
+    r[2 * 3 + 0] = 2.0f * (xz - wy);
+    r[2 * 3 + 1] = 2.0f * (yz + wx);
+    r[2 * 3 + 2] = 1.0f - 2.0f * (xx + yy);
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode vec3_add(const Vector3* const a, const Vector3* const b, Vector3* out) {
+    if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
+
+    out->x = a->x + b->x;
+    out->y = a->y + b->y;
+    out->z = a->z + b->z;
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode vec3_sub(const Vector3* const a, const Vector3* const b, Vector3* out) {
+    if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
+
+    out->x = a->x - b->x;
+    out->y = a->y - b->y;
+    out->z = a->z - b->z;
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode vec3_scalar_mul(const Vector3* const v, float scalar, Vector3* out) {
+    if(v == NULL || out == NULL) return MATRIX_INVALID;
+
+    out->x = v->x * scalar;
+    out->y = v->y * scalar;
+    out->z = v->z * scalar;
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode vec3_norm(const Vector3* const v, float* out) {
+    if(v == NULL || out == NULL) return MATRIX_INVALID;
+
+    *out = sqrtf(v->x * v->x + v->y * v->y + v->z * v->z);
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode vec3_normalize(const Vector3* const v, Vector3* out) {
+    if(v == NULL || out == NULL) return MATRIX_INVALID;
+
+    float norm;
+    if(vec3_norm(v, &norm) != MATRIX_SUCCESS) return MATRIX_ERROR;
+
+    if(norm < 1e-8f) return MATRIX_ERROR;
+
+    out->x = v->x / norm;
+    out->y = v->y / norm;
+    out->z = v->z / norm;
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode vec3_dot(const Vector3* const a, const Vector3* const b, float* out) {
+    if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
+
+    *out = a->x * b->x + a->y * b->y + a->z * b->z;
+
+    return MATRIX_SUCCESS;
+}
+
+MatrixErrorCode vec3_cross(const Vector3* const a, const Vector3* const b, Vector3* out) {
+    if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
+
+    out->x = a->y * b->z - b->y * a->z;
+    out->y = a->z * b->x - b->z * a->x;
+    out->z = a->x * b->y - b->x * a->y;
+
+    return MATRIX_SUCCESS;
+}
+
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
 

@@ -26,6 +26,7 @@
 #include "app/fsm.h"
 
 
+
 // 测试函数
 void arm_test(WifiBtConnectInfo* info);
 
@@ -208,8 +209,8 @@ void arm_test(WifiBtConnectInfo* info) {
     pose.position.z = 0.2f;
 
     SixDofJoint ik_joints = { 0 };
-    ArmErrorCode ret = arm.ik(&pose, &ik_joints, &joints, IK_MODE_POSITION_ONLY);
-    if(ret != ARM_SUCCESS) {
+    ArmStatus ret = arm.ik(&pose, &ik_joints, &joints, IK_MODE_POSITION_ONLY);
+    if(ret != ARM_STATUS_SUCCESS) {
         printf("IK failed: %d\r\n", ret);
         return;
     }
@@ -235,7 +236,7 @@ void arm_test(WifiBtConnectInfo* info) {
     printf("Starting IK tests...\r\n");
     SixDofJointAll all_joints = { 0 };
     ret = arm.all_ik(&pose, &all_joints, IK_MODE_POSITION_ONLY);
-    if(ret != ARM_SUCCESS) {
+    if(ret != ARM_STATUS_SUCCESS) {
         printf("All IK failed: %d\r\n", ret);
         return;
     }

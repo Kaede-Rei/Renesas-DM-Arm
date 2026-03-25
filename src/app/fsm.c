@@ -5,10 +5,14 @@
 #include <stddef.h>
 #include <math.h>
 
+#include "tools/matrix.h"
+
 #include "drive/d_wifi_bt.h"
+#include "drive/d_led.h"
 
 #include "service/s_comms.h"
 #include "service/s_delay.h"
+#include "service/s_fk_ik.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
@@ -22,6 +26,7 @@ typedef struct {
 
     WeedData weed;
     WifiBtConnectInfo wifi_info;
+    SixDofJoint ik_result;
 } FsmData;
 static FsmData fsm_data;
 
@@ -279,10 +284,53 @@ static void entry_searching(void) {
         fsm_data.weed = *(WeedData*)cur.msg.data;
         printf("[FSM] 捕获目标 ID：%d，坐标：x=%.2f, y=%.2f, z=%.2f, confidence=%.2f\r\n", fsm_data.weed.id, fsm_data.weed.x, fsm_data.weed.y, fsm_data.weed.z, fsm_data.weed.confidence);
     }
+    else {
+        fsm_trigger(EVENT_DETECT_ERROR, "未提供杂草数据");
+    }
 }
 static void exit_searching(void) {}
 static void action_searching(void) {
+    static Pose start_pose;
+    static SixDofJoint seed_joints = { 0.0f, 0.1258f, 0.5978f, -0.4620f, 0.0f, 0.0f };
 
+    start_pose.position.x = 0.0f;
+    start_pose.position.y = 0.2f;
+    start_pose.position.z = 0.3f;
+
+    static Vector3 aim_dir;
+    aim_dir.x = fsm_data.weed.x - start_pose.position.x;
+    aim_dir.y = fsm_data.weed.y - start_pose.position.y;
+    aim_dir.z = fsm_data.weed.z - start_pose.position.z;
+
+    vec3_normalize(&aim_dir, &aim_dir);
+    static Vector3 refer_dir = { 0.0f, 0.0f, 1.0f };
+    static float dot;
+    vec3_dot(&aim_dir, &refer_dir, &dot);
+    if(dot > 0.95f) { refer_dir = (Vector3){ 0.0f, 1.0f, 0.0f }; }
+
+    static Vector3 cross_x;
+    vec3_cross(&aim_dir, &refer_dir, &cross_x);
+    vec3_normalize(&cross_x, &cross_x);
+    static Vector3 cross_y;
+    vec3_cross(&aim_dir, &cross_x, &cross_y);
+
+    static Matrix R; float R_data[3 * 3]; matrix(&R, 3, 3, R_data);
+    R.pdata[0 * 3 + 0] = cross_x.x; R.pdata[0 * 3 + 1] = cross_y.x; R.pdata[0 * 3 + 2] = aim_dir.x;
+    R.pdata[1 * 3 + 0] = cross_x.y; R.pdata[1 * 3 + 1] = cross_y.y; R.pdata[1 * 3 + 2] = aim_dir.y;
+    R.pdata[2 * 3 + 0] = cross_x.z; R.pdata[2 * 3 + 1] = cross_y.z; R.pdata[2 * 3 + 2] = aim_dir.z;
+
+    Quaternion quat;
+    matrix_to_quat(&R, (float*)&quat);
+    start_pose.orientation = quat;
+
+    printf("[FSM] 计算目标位姿：position=(%.2f, %.2f, %.2f), orientation=(w=%.2f, x=%.2f, y=%.2f, z=%.2f)\r\n", start_pose.position.x, start_pose.position.y, start_pose.position.z, start_pose.orientation.w, start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z);
+
+    if(arm.ik(&start_pose, &fsm_data.ik_result, &seed_joints, IK_MODE_FULL_POSE) == arm.SUCCESS) {
+        fsm_trigger(EVENT_SEARCH_COMPLETE, NULL);
+    }
+    else {
+        fsm_trigger(EVENT_DETECT_ERROR, "IK 求解失败");
+    }
 }
 
 
@@ -334,7 +382,9 @@ static void entry_lasering(void) {
         fsm_data.wifi_info = *(WifiBtConnectInfo*)cur.msg.data;
         wifi.send(fsm_data.wifi_info, "Ready to Laser", strlen("Ready to Laser"));
     }
-
+    else {
+        fsm_trigger(EVENT_DETECT_ERROR, "未提供网络连接信息");
+    }
 }
 static void exit_lasering(void) {}
 static void action_lasering(void) {
@@ -363,4 +413,10 @@ static void entry_error(void) {
     }
 }
 static void exit_error(void) {}
-static void action_error(void) {}
+static void action_error(void) {
+    printf("[FSM] 错误状态，等待重置...\r\n");
+    while(1) {
+        led.toggle();
+        s_delay_ms(500);
+    }
+}

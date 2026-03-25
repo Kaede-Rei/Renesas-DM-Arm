@@ -11,6 +11,14 @@
  */
 #define arm s_fk_ik_instance
 
+#define ARM_STATUS_TABLE \
+    X(SUCCESS) \
+    X(ERROR) \
+    X(INVALID_JOINTS) \
+    X(INVALID_POSE) \
+    X(SINGULARITY) \
+    X(OUT_OF_REACH)
+
 /// @brief PI 常量
 #define M_PI 3.14159265358979323846f
 /// @brief 2PI 常量
@@ -18,21 +26,18 @@
 
 /**
  * @brief 机械臂错误码
- * @param ARM_SUCCESS 成功
- * @param ARM_ERROR 一般错误
- * @param ARM_ERROR_INVALID_JOINTS 无效的关节输入
- * @param ARM_ERROR_INVALID_POSE 无效的位姿输入
- * @param ARM_ERROR_SINGULARITY 奇异点
- * @param ARM_ERROR_OUT_OF_REACH 目标位姿不可达
+ * @param ARM_STATUS_SUCCESS 成功
+ * @param ARM_STATUS_ERROR 一般错误
+ * @param ARM_STATUS_INVALID_JOINTS 无效的关节输入
+ * @param ARM_STATUS_INVALID_POSE 无效的位姿输入
+ * @param ARM_STATUS_SINGULARITY 奇异点
+ * @param ARM_STATUS_OUT_OF_REACH 目标位姿不可达
  */
+#define X(name) ARM_STATUS_##name,
 typedef enum {
-    ARM_SUCCESS = 0,
-    ARM_ERROR,
-    ARM_ERROR_INVALID_JOINTS,
-    ARM_ERROR_INVALID_POSE,
-    ARM_ERROR_SINGULARITY,
-    ARM_ERROR_OUT_OF_REACH
-} ArmErrorCode;
+    ARM_STATUS_TABLE
+} ArmStatus;
+#undef X
 
 /**
  * @brief 逆运动学求解模式
@@ -84,10 +89,10 @@ typedef struct {
  * @param z 虚部 z
  */
 typedef struct {
+    float w;
     float x;
     float y;
     float z;
-    float w;
 } Quaternion;
 
 /**
@@ -176,21 +181,25 @@ typedef struct {
  * @param rpy_to_quat RPY转四元数函数指针
  * @param quat_to_rpy 四元数转RPY函数指针
  */
+#define X(name) const ArmStatus name;
 extern const struct FkIkInterface {
+    struct {
+        ARM_STATUS_TABLE
+    };
     /**
      * @brief 初始化机械臂的 MDH 参数
      * @param mdh 机械臂的 MDH 参数
-     * @return ArmErrorCode 错误码
+     * @return ArmStatus 错误码
      */
-    ArmErrorCode(*init)(const ArmMDH* mdh);
+    ArmStatus(*init)(const ArmMDH* mdh);
 
     /**
      * @brief 正运动学求解
      * @param joints 关节角度
      * @param pose 输出的末端位姿
-     * @return ArmErrorCode 错误码
+     * @return ArmStatus 错误码
      */
-    ArmErrorCode(*fk)(const SixDofJoint* joints, Pose* pose);
+    ArmStatus(*fk)(const SixDofJoint* joints, Pose* pose);
 
     /**
      * @brief 逆运动学求解
@@ -198,18 +207,18 @@ extern const struct FkIkInterface {
      * @param joints 输出的关节角度
      * @param current_joints 当前关节角度
      * @param mode IK 模式
-     * @return ArmErrorCode 错误码
+     * @return ArmStatus 错误码
      */
-    ArmErrorCode(*ik)(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode);
+    ArmStatus(*ik)(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode);
 
     /**
      * @brief 全解逆运动学求解
      * @param pose 目标末端位姿
      * @param joints 输出的所有解
      * @param mode IK 模式
-     * @return ArmErrorCode 错误码
+     * @return ArmStatus 错误码
      */
-    ArmErrorCode(*all_ik)(const Pose* pose, SixDofJointAll* joints, IkMode mode);
+    ArmStatus(*all_ik)(const Pose* pose, SixDofJointAll* joints, IkMode mode);
 
     /**
      * @brief 选择解
@@ -223,28 +232,29 @@ extern const struct FkIkInterface {
      * @brief RPY 转四元数
      * @param rpy RPY 结构体
      * @param quat 输出的四元数指针
-     * @return ArmErrorCode 错误码
+     * @return ArmStatus 错误码
      */
-    ArmErrorCode(*rpy_to_quat)(const RPY rpy, Quaternion* quat);
+    ArmStatus(*rpy_to_quat)(const RPY rpy, Quaternion* quat);
 
     /**
      * @brief 四元数转 RPY
      * @param q 四元数
      * @param rpy 输出的 RPY 指针
-     * @return ArmErrorCode 错误码
+     * @return ArmStatus 错误码
      */
-    ArmErrorCode(*quat_to_rpy)(const Quaternion q, RPY* rpy);
+    ArmStatus(*quat_to_rpy)(const Quaternion q, RPY* rpy);
 } s_fk_ik_instance;
+#undef X
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-ArmErrorCode s_six_dof_init(const ArmMDH* mdh);
-ArmErrorCode s_six_dof_fk(const SixDofJoint* joints, Pose* pose);
-ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode);
-ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode mode);
+ArmStatus s_six_dof_init(const ArmMDH* mdh);
+ArmStatus s_six_dof_fk(const SixDofJoint* joints, Pose* pose);
+ArmStatus s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode);
+ArmStatus s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode mode);
 SixDofJoint* s_solution_select(SixDofJointAll* sols, uint8_t idx);
 
-ArmErrorCode s_rpy_to_quat(const RPY rpy, Quaternion* quat);
-ArmErrorCode s_quat_to_rpy(const Quaternion q, RPY* rpy);
+ArmStatus s_rpy_to_quat(const RPY rpy, Quaternion* quat);
+ArmStatus s_quat_to_rpy(const Quaternion q, RPY* rpy);
 
 #endif

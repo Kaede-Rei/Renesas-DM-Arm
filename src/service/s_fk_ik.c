@@ -42,22 +42,22 @@ static bool solution_is_unique(const SixDofJointAll* sols, const SixDofJoint* ca
 /**
  * @brief 初始化机械臂的 MDH 参数
  * @param mdh 机械臂的 MDH 参数
- * @return ArmErrorCode 错误码
+ * @return ArmStatus 错误码
  */
-ArmErrorCode s_six_dof_init(const ArmMDH* mdh) {
-    if(mdh == NULL) return ARM_ERROR;
+ArmStatus s_six_dof_init(const ArmMDH* mdh) {
+    if(mdh == NULL) return ARM_STATUS_ERROR;
     arm_mdh = *mdh;
-    return ARM_SUCCESS;
+    return ARM_STATUS_SUCCESS;
 }
 
 /**
  * @brief 计算机械臂的正运动学
  * @param joints 机械臂的关节角度
  * @param pose 输出的末端位姿
- * @return ArmErrorCode 错误码
+ * @return ArmStatus 错误码
  */
-ArmErrorCode s_six_dof_fk(const SixDofJoint* joints, Pose* pose) {
-    if(joints == NULL || pose == NULL) return ARM_ERROR;
+ArmStatus s_six_dof_fk(const SixDofJoint* joints, Pose* pose) {
+    if(joints == NULL || pose == NULL) return ARM_STATUS_ERROR;
 
     matrix_create(q, 6, 1);
     matrix_create(T, 4, 4);
@@ -66,7 +66,7 @@ ArmErrorCode s_six_dof_fk(const SixDofJoint* joints, Pose* pose) {
     fk_compute(&q, &T);
     matrix_to_pose(&T, pose);
 
-    return ARM_SUCCESS;
+    return ARM_STATUS_SUCCESS;
 }
 
 /**
@@ -75,11 +75,11 @@ ArmErrorCode s_six_dof_fk(const SixDofJoint* joints, Pose* pose) {
  * @param joints 输出的关节角度解
  * @param current_joints 当前关节角度，作为初始猜测
  * @param mode IK 模式，决定只约束位置、姿态还是全位姿
- * @return ArmErrorCode 错误码
+ * @return ArmStatus 错误码
  */
-ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode) {
+ArmStatus s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoint* current_joints, IkMode mode) {
     if(!pose || !joints || !current_joints)
-        return ARM_ERROR;
+        return ARM_STATUS_ERROR;
 
     matrix_create(q, 6, 1);
     matrix_create(T, 4, 4);
@@ -141,7 +141,7 @@ ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoi
 
         if(pos_ok && ori_ok) {
             array_to_joints(&q, joints);
-            return ARM_SUCCESS;
+            return ARM_STATUS_SUCCESS;
         }
 
         for(unsigned int i = 0; i < 6; i++) {
@@ -180,7 +180,7 @@ ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoi
         matrix_add(&JJT, &L, &JJT);
 
         if(matrix_inverse(&JJT, &inv) != MATRIX_SUCCESS)
-            return ARM_ERROR_SINGULARITY;
+            return ARM_STATUS_SINGULARITY;
 
         matrix_mul(&inv, &JT, &tmp);
         matrix_mul(&tmp, &err, &dq);
@@ -192,7 +192,7 @@ ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoi
         }
     }
 
-    return ARM_ERROR_OUT_OF_REACH;
+    return ARM_STATUS_OUT_OF_REACH;
 }
 
 /**
@@ -200,10 +200,10 @@ ArmErrorCode s_six_dof_ik(const Pose* pose, SixDofJoint* joints, const SixDofJoi
  * @param pose 目标末端位姿
  * @param joints 输出的所有关节角度解
  * @param mode IK 模式，决定只约束位置、姿态还是全位姿
- * @return ArmErrorCode 错误码
+ * @return ArmStatus 错误码
  */
-ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode mode) {
-    if(!pose || !joints) return ARM_ERROR;
+ArmStatus s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode mode) {
+    if(!pose || !joints) return ARM_STATUS_ERROR;
 
     joints->num_solutions = 0;
     const float ratios[3] = { 0.5f, 0.0f, -0.5f };
@@ -211,7 +211,7 @@ ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode m
     for(int i1 = 0; i1 < 3; i1++) {
         for(int i2 = 0; i2 < 3; i2++) {
             for(int i3 = 0; i3 < 3; i3++) {
-                if(joints->num_solutions >= 8) return (joints->num_solutions > 0) ? ARM_SUCCESS : ARM_ERROR_OUT_OF_REACH;
+                if(joints->num_solutions >= 8) return (joints->num_solutions > 0) ? ARM_STATUS_SUCCESS : ARM_STATUS_OUT_OF_REACH;
 
                 SixDofJoint seed = { 0 };
                 seed.joint_1 = ratios[i1] * (ratios[i1] > 0 ? arm_mdh.qmax[0] : -arm_mdh.qmin[0]);
@@ -219,9 +219,9 @@ ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode m
                 seed.joint_3 = ratios[i3] * (ratios[i3] > 0 ? arm_mdh.qmax[2] : -arm_mdh.qmin[2]);
 
                 SixDofJoint candidate = { 0 };
-                ArmErrorCode ret = s_six_dof_ik(pose, &candidate, &seed, mode);
+                ArmStatus ret = s_six_dof_ik(pose, &candidate, &seed, mode);
 
-                if(ret != ARM_SUCCESS) continue;
+                if(ret != ARM_STATUS_SUCCESS) continue;
                 if(!solution_is_unique(joints, &candidate)) continue;
 
                 *s_solution_select(joints, joints->num_solutions) = candidate;
@@ -230,7 +230,7 @@ ArmErrorCode s_six_dof_all_ik(const Pose* pose, SixDofJointAll* joints, IkMode m
         }
     }
 
-    return (joints->num_solutions > 0) ? ARM_SUCCESS : ARM_ERROR_OUT_OF_REACH;
+    return (joints->num_solutions > 0) ? ARM_STATUS_SUCCESS : ARM_STATUS_OUT_OF_REACH;
 }
 
 /**
@@ -257,10 +257,10 @@ SixDofJoint* s_solution_select(SixDofJointAll* sols, uint8_t idx) {
  * @brief 将欧拉角转换为四元数
  * @param rpy 输入的欧拉角，单位为弧度
  * @param quat 输出的四元数
- * @return ArmErrorCode 错误码
+ * @return ArmStatus 错误码
  */
-ArmErrorCode s_rpy_to_quat(const RPY rpy, Quaternion* quat) {
-    if(!quat) return ARM_ERROR;
+ArmStatus s_rpy_to_quat(const RPY rpy, Quaternion* quat) {
+    if(!quat) return ARM_STATUS_ERROR;
 
     float cx = cosf(rpy.roll * 0.5f);
     float sx = sinf(rpy.roll * 0.5f);
@@ -274,17 +274,17 @@ ArmErrorCode s_rpy_to_quat(const RPY rpy, Quaternion* quat) {
     quat->y = cx * sy * cz + sx * cy * sz;
     quat->z = cx * cy * sz - sx * sy * cz;
 
-    return ARM_SUCCESS;
+    return ARM_STATUS_SUCCESS;
 }
 
 /**
  * @brief 将四元数转换为欧拉角
  * @param q 输入的四元数
  * @param rpy 输出的欧拉角
- * @return ArmErrorCode 错误码
+ * @return ArmStatus 错误码
  */
-ArmErrorCode s_quat_to_rpy(const Quaternion q, RPY* rpy) {
-    if(!rpy) return ARM_ERROR;
+ArmStatus s_quat_to_rpy(const Quaternion q, RPY* rpy) {
+    if(!rpy) return ARM_STATUS_ERROR;
 
     float sinr_cosp = 2.0f * (q.w * q.x + q.y * q.z);
     float cosr_cosp = 1.0f - 2.0f * (q.x * q.x + q.y * q.y);
@@ -300,7 +300,7 @@ ArmErrorCode s_quat_to_rpy(const Quaternion q, RPY* rpy) {
     float cosy_cosp = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
     rpy->yaw = atan2f(siny_cosp, cosy_cosp);
 
-    return ARM_SUCCESS;
+    return ARM_STATUS_SUCCESS;
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
