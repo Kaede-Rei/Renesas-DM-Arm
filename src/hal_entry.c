@@ -40,8 +40,8 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  * @brief 系统初始化函数
  * @note 该函数在 hal_entry() 中被调用，用于初始化系统资源和外设
  */
-void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info);
-void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
+void sys_init(RingBuf* uart7_rx_buf);
+void sys_init(RingBuf* uart7_rx_buf) {
     if(systick.init() != FSP_SUCCESS) while(1);
     s_delay_ms_init(systick.get_ms);
 
@@ -52,23 +52,6 @@ void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     s_delay_ms(2000);
     led.on();
     printf("System Init Complete!\r\n");
-
-    dm.enable(0x01);
-    dm.enable(0x02);
-    dm.enable(0x03);
-    dm.enable(0x04);
-    dm.enable(0x05);
-    dm.enable(0x06);
-
-    info->ssid = "K230";
-    info->password = "12345678";
-    info->protocol = UDP;
-    info->role = Client;
-    strcpy(info->ip, "192.168.169.1");
-    info->remote_port = 8080;
-    info->local_port = 5000;
-    if(wifi.join_ap(info->ssid, info->password) != wifi.OK) printf("WiFi 连接失败!\r\n");
-    else printf("WiFi 连接成功!\r\n");
 }
 
 /*******************************************************************************************************************//**
@@ -87,7 +70,7 @@ void hal_entry(void) {
     RingBufCreate(&buf7, uart7_buffer, sizeof(uart7_buffer), 1);
 
     static WifiBtConnectInfo info;
-    sys_init(&buf7, &info);
+    sys_init(&buf7);
 
     static ms_t dm_update_task = 0;
     static ms_t printf_task = 0;
