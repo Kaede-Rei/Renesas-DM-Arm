@@ -48,7 +48,7 @@ static void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     uart.init(UART7, uart7_rx_buf);
     wifi.init(UART6, STA, (const uint8_t*)"RENE:", 5);
     can.init();
-
+    
     dm.enable(0x01);
     dm.enable(0x02);
     dm.enable(0x03);

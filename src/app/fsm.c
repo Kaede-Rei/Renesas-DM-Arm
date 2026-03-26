@@ -450,7 +450,6 @@ static void action_searching(void) {
     fsm_trigger(EVENT_SEARCH_COMPLETE, NULL);
 }
 
-
 /**
  * @brief ik_pose 状态
  */
@@ -509,19 +508,19 @@ static void entry_moving(void) {
 }
 static void exit_moving(void) {}
 static void action_moving(void) {
-    for(uint8_t i = 1; i <= 6; ++i) {
-        if(!fsm_data.dm_fb_valid[i]) return;
-    }
-
-    float pos_err = 0.1f;
-    if(fabsf(fsm_data.dm_fb[1].pos - fsm_data.ik_result.joint_1) > pos_err) return;
-    if(fabsf(fsm_data.dm_fb[2].pos - fsm_data.ik_result.joint_2) > pos_err) return;
-    if(fabsf(fsm_data.dm_fb[3].pos - fsm_data.ik_result.joint_3) > pos_err) return;
-    if(fabsf(fsm_data.dm_fb[4].pos - fsm_data.ik_result.joint_4) > pos_err) return;
-    if(fabsf(fsm_data.dm_fb[5].pos - fsm_data.ik_result.joint_5) > pos_err) return;
-    if(fabsf(fsm_data.dm_fb[6].pos - fsm_data.ik_result.joint_6) > pos_err) return;
-
     if(s_nb_delay_ms(&move_timer, 5000)) {
+        for(uint8_t i = 1; i <= 6; ++i) {
+            if(!fsm_data.dm_fb_valid[i]) return;
+        }
+
+        float pos_err = 0.1f;
+        if(fabsf(fsm_data.dm_fb[1].pos - fsm_data.ik_result.joint_1) > pos_err) return;
+        if(fabsf(fsm_data.dm_fb[2].pos - fsm_data.ik_result.joint_2) > pos_err) return;
+        if(fabsf(fsm_data.dm_fb[3].pos - fsm_data.ik_result.joint_3) > pos_err) return;
+        if(fabsf(fsm_data.dm_fb[4].pos - fsm_data.ik_result.joint_4) > pos_err) return;
+        if(fabsf(fsm_data.dm_fb[5].pos - fsm_data.ik_result.joint_5) > pos_err) return;
+        if(fabsf(fsm_data.dm_fb[6].pos - fsm_data.ik_result.joint_6) > pos_err) return;
+
         fsm_trigger(EVENT_DETECT_ERROR, "移动超时");
     }
 
