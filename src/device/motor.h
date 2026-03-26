@@ -1,5 +1,5 @@
-#ifndef _d_dm_h_
-#define _d_dm_h_
+#ifndef _motor_h_
+#define _motor_h_
 
 #include <stdbool.h>
 #include <stdint.h>

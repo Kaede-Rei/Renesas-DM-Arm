@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-#include "drive/d_wifi_bt.h"
-#include "drive/d_dm_motor.h"
+#include "device/wifi_bt.h"
+#include "device/motor.h"
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 

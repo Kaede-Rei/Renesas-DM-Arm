@@ -1,4 +1,4 @@
-#include "app/fsm.h"
+#include "fsm.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -7,14 +7,13 @@
 #include <stddef.h>
 #include <math.h>
 
-#include "fsm.h"
-#include "tools/matrix.h"
+#include "infra/matrix.h"
 
-#include "drive/d_led.h"
+#include "platform/led.h"
 
-#include "service/s_comms.h"
-#include "service/s_delay.h"
-#include "service/s_fk_ik.h"
+#include "app/packet_parser.h"
+#include "infra/delay.h"
+#include "domain/arm_kine.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
@@ -574,6 +573,6 @@ static void action_error(void) {
     printf("[FSM] 错误状态，等待重置...\r\n");
     while(1) {
         led.toggle();
-        s_delay_ms(500);
+        delay_ms(500);
     }
 }

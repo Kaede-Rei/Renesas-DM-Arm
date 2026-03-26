@@ -1,15 +1,15 @@
-#ifndef _d_uart_h_
-#define _d_uart_h_
+#ifndef _uart_h_
+#define _uart_h_
 
 #include <stdbool.h>
-#include "tools/protocol_parser.h"
+#include "infra/protocol_parser.h"
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
  * @brief UART 单例用户自定义名称
  */
-#define uart d_uart_instance
+#define uart uart_instance
 
 /**
  * @brief UART 错误代码枚举类型
@@ -97,16 +97,16 @@ extern const struct UartInterface {
      * @return true 表示完成，false 未完成
      */
     bool (*is_rx_complete)(Uart_te uart);
-} d_uart_instance;
+} uart_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-UartErrorCode_e d_uart_init(Uart_te uart, struct RingBuf* rx_buf);
-UartErrorCode_e d_uart_write(Uart_te uart, const uint8_t* data, uint16_t length);
-UartErrorCode_e d_uart_read(Uart_te uart, uint8_t* data, uint16_t length);
-UartErrorCode_e d_uart_wait_tx_complete(Uart_te uart);
-UartErrorCode_e d_uart_wait_rx_complete(Uart_te uart);
-bool d_uart_is_tx_complete(Uart_te uart);
-bool d_uart_is_rx_complete(Uart_te uart);
+UartErrorCode_e uart_init(Uart_te uart, struct RingBuf* rx_buf);
+UartErrorCode_e uart_write(Uart_te uart, const uint8_t* data, uint16_t length);
+UartErrorCode_e uart_read(Uart_te uart, uint8_t* data, uint16_t length);
+UartErrorCode_e uart_wait_tx_complete(Uart_te uart);
+UartErrorCode_e uart_wait_rx_complete(Uart_te uart);
+bool uart_is_tx_complete(Uart_te uart);
+bool uart_is_rx_complete(Uart_te uart);
 
 #endif

@@ -1,8 +1,8 @@
 /**
- * @file    s_delay.c
+ * @file    delay.c
  * @brief   延时服务实现
  */
-#include "s_delay.h"
+#include "delay.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
@@ -28,10 +28,10 @@ static bool us_timeout(us_t start, us_t timeout_us);
  * @param get_ms 获取当前毫秒数的函数指针
  * @param ms_timeout 判断毫秒级是否超时的函数指针, 超时返回 true, 未超时返回 false
  * @note 用法: 在系统初始化时调用, 传入对应的函数指针, 即可使用延时服务. 例如:
- * @note s_delay_ms_init(systick_get_ms, systick_is_timeout);
+ * @note delay_ms_init(systick_get_ms, systick_is_timeout);
  * @note 其中: ms_t = us_t = uint32_t
  */
-void s_delay_ms_init(ms_t(*get_ms)(void)) {
+void delay_ms_init(ms_t(*get_ms)(void)) {
     delay_ops.get_ms = get_ms;
 }
 
@@ -40,7 +40,7 @@ void s_delay_ms_init(ms_t(*get_ms)(void)) {
  * @param ms 延时毫秒数
  * @return None
  */
-void s_delay_ms(ms_t ms) {
+void delay_ms(ms_t ms) {
     if(delay_ops.get_ms == 0) return;
     ms_t start = delay_ops.get_ms();
     while(!ms_timeout(start, ms));
@@ -51,7 +51,7 @@ void s_delay_ms(ms_t ms) {
  * @param s 延时秒数
  * @return None
  */
-void s_delay_s(ms_t s) {
+void delay_s(ms_t s) {
     if(delay_ops.get_ms == 0) return;
     ms_t start = delay_ops.get_ms();
     while(!ms_timeout(start, s * 1000));
@@ -83,7 +83,7 @@ bool s_nb_delay_ms(ms_t* start, ms_t interval_ms) {
  * @brief 微秒延时服务初始化
  * @param get_us 获取当前微秒数的函数指针
  */
-void s_delay_us_init(us_t(*get_us)(void)) {
+void delay_us_init(us_t(*get_us)(void)) {
     delay_ops.get_us = get_us;
 }
 
@@ -92,7 +92,7 @@ void s_delay_us_init(us_t(*get_us)(void)) {
  * @param us 延时微秒数
  * @return None
  */
-void s_delay_us(us_t us) {
+void delay_us(us_t us) {
     if(delay_ops.get_us == 0) return;
     us_t start = delay_ops.get_us();
     while(!us_timeout(start, us));

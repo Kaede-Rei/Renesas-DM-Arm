@@ -1,9 +1,9 @@
 /**
- * @file    s_delay.h
+ * @file    delay.h
  * @brief   延时服务 (阻塞 & 非阻塞)
  */
-#ifndef _s_delay_h_
-#define _s_delay_h_
+#ifndef _delay_h_
+#define _delay_h_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -18,13 +18,13 @@ typedef uint32_t us_t;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-void s_delay_ms_init(ms_t(*get_ms)(void));
-void s_delay_ms(ms_t ms);
-void s_delay_s(ms_t s);
+void delay_ms_init(ms_t(*get_ms)(void));
+void delay_ms(ms_t ms);
+void delay_s(ms_t s);
 bool s_nb_delay_ms(ms_t* start, ms_t interval_ms);
 
-void s_delay_us_init(us_t(*get_us)(void));
-void s_delay_us(us_t us);
+void delay_us_init(us_t(*get_us)(void));
+void delay_us(us_t us);
 bool s_nb_delay_us(us_t* start, us_t interval_us);
 
 #endif

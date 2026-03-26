@@ -1,13 +1,13 @@
-#include "d_systick.h"
+#include "systick.h"
 
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-const struct SystickInstance d_systick_instance = {
-    .init = d_systick_init,
-    .get_ms = d_systick_get_ms,
-    .get_s = d_systick_get_s,
-    .is_timeout = d_systick_is_timeout
+const struct SystickInstance systick_instance = {
+    .init = systick_init,
+    .get_ms = systick_get_ms,
+    .get_s = systick_get_s,
+    .is_timeout = systick_is_timeout
 };
 
 static volatile ms_t _ms = 0;
@@ -22,7 +22,7 @@ void SysTick_Handler(void);
  * @brief 初始化 SysTick 定时器
  * @return fsp_err_t 枚举类型，表示操作结果
  */
-fsp_err_t d_systick_init(void) {
+fsp_err_t systick_init(void) {
     uint32_t uw_sysclk = R_BSP_SourceClockHzGet(FSP_PRIV_CLOCK_PLL);
 
     if(SysTick_Config(uw_sysclk / 1000) != 0) {
@@ -36,7 +36,7 @@ fsp_err_t d_systick_init(void) {
  * @brief 获取系统运行的毫秒数
  * @return 当前系统运行的毫秒数
  */
-ms_t d_systick_get_ms(void) {
+ms_t systick_get_ms(void) {
     return _ms;
 }
 
@@ -44,7 +44,7 @@ ms_t d_systick_get_ms(void) {
  * @brief 获取系统运行的秒数
  * @return 当前系统运行的秒数
  */
-ms_t d_systick_get_s(void) {
+ms_t systick_get_s(void) {
     return _ms / 1000;
 }
 
@@ -54,8 +54,8 @@ ms_t d_systick_get_s(void) {
  * @param timeout_ms 超时时间（毫秒）
  * @return true 表示已超时，false 表示未超时
  */
-bool d_systick_is_timeout(ms_t start, ms_t timeout_ms) {
-    ms_t now = d_systick_get_ms();
+bool systick_is_timeout(ms_t start, ms_t timeout_ms) {
+    ms_t now = systick_get_ms();
     if(now >= start) {
         return (now - start) >= timeout_ms ? true : false;
     }

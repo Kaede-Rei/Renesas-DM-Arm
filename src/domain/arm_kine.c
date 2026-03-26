@@ -1,10 +1,10 @@
-#include "s_fk_ik.h"
+#include "arm_kine.h"
 
 #include <math.h>
 #include <string.h>
 #include <stdbool.h>
 
-#include "tools/matrix.h"
+#include "infra/matrix.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //
 

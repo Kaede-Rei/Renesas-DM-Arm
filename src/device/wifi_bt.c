@@ -1,10 +1,10 @@
-#include "d_wifi_bt.h"
+#include "wifi_bt.h"
 
-#include "drive/d_systick.h"
-#include "drive/d_uart.h"
-#include "service/s_delay.h"
-#include "tools/protocol_parser.h"
-#include "tools/simple_api.h"
+#include "platform/systick.h"
+#include "platform/uart.h"
+#include "infra/delay.h"
+#include "infra/protocol_parser.h"
+#include "platform/simple_api.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -13,28 +13,28 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-const struct WifiBtInstance d_wifi_bt_instance = {
+const struct WifiBtInstance wifi_bt_instance = {
     {
         #define X(name, value) .name = WIFI_BT_##name,
         WIFI_BT_STATUS_TABLE
         #undef X
     },
 
-    .init = d_wifi_bt_init,
-    .send_cmd = d_wifi_bt_send_cmd,
-    .join_ap = d_wifi_bt_join_ap,
-    .rejoin_ap = d_wifi_bt_rejoin_ap,
-    .check_ap = d_wifi_bt_check_ap,
-    .connect = d_wifi_bt_connect,
-    .disconnect = d_wifi_bt_disconnect,
-    .reset = d_wifi_bt_reset,
-    .enter_transparent = d_wifi_bt_enter_transparent,
-    .exit_transparent = d_wifi_bt_exit_transparent,
+    .init = wifi_bt_init,
+    .send_cmd = wifi_bt_send_cmd,
+    .join_ap = wifi_bt_join_ap,
+    .rejoin_ap = wifi_bt_rejoin_ap,
+    .check_ap = wifi_bt_check_ap,
+    .connect = wifi_bt_connect,
+    .disconnect = wifi_bt_disconnect,
+    .reset = wifi_bt_reset,
+    .enter_transparent = wifi_bt_enter_transparent,
+    .exit_transparent = wifi_bt_exit_transparent,
 
-    .heartbeat = d_wifi_bt_heartbeat,
-    .process = d_wifi_bt_process,
-    .send_frame = d_wifi_bt_send_frame,
-    .send = d_wifi_bt_send
+    .heartbeat = wifi_bt_heartbeat,
+    .process = wifi_bt_process,
+    .send_frame = wifi_bt_send_frame,
+    .send = wifi_bt_send
 };
 
 /**
@@ -79,21 +79,21 @@ static bool wait_str(const char* expected, uint8_t length, uint32_t timeout_ms);
  * @param header_len 帧头标识的长度，最小为 2 字节
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_init(Uart_te uart_instance, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len) {
-    config.uart = uart_instance;
+WifiBtStatus wifi_bt_init(Uart_te uart_, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len) {
+    config.uart = uart_;
     config.mode = mode;
     config.header = header;
     config.header_len = header_len;
 
     RingBufCreate(&config.rx_buf, config.rx_raw, WIFI_BT_FRAME_RX_BUF_SIZE, 1);
-    d_uart_init(uart_instance, &config.rx_buf);
+    uart_init(uart_, &config.rx_buf);
 
     FrameParserCreate(&config.frame_parser, &config.rx_buf, header, header_len, config.frame_raw, WIFI_BT_FRAME_BUF_SIZE, false);
 
     gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_LOW);
-    s_delay_ms(100);
+    delay_ms(100);
     gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_HIGH);
-    s_delay_ms(500);
+    delay_ms(500);
 
     char str[12];
     snprintf(str, sizeof(str), "AT+WPRT=%d\r\n", mode);
@@ -111,7 +111,7 @@ WifiBtStatus d_wifi_bt_init(Uart_te uart_instance, WifiBtWorkMode mode, const ui
  * @param cmd 要发送的 AT 命令字符串
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_send_cmd(const char* cmd) {
+WifiBtStatus wifi_bt_send_cmd(const char* cmd) {
     char buf[64];
     snprintf(buf, sizeof(buf), "%s\r\n", cmd);
 
@@ -126,19 +126,19 @@ WifiBtStatus d_wifi_bt_send_cmd(const char* cmd) {
  * @param pwd WiFi 网络的密码
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_join_ap(const char* ssid, const char* pwd) {
+WifiBtStatus wifi_bt_join_ap(const char* ssid, const char* pwd) {
     char cmd[128];
 
     snprintf(cmd, sizeof(cmd), "AT+SSID=%s", ssid);
-    if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
+    if(wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
     if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     snprintf(cmd, sizeof(cmd), "AT+KEY=1,0,%s", pwd);
-    if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
+    if(wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
     if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     snprintf(cmd, sizeof(cmd), "AT+WJOIN");
-    if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
+    if(wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
     if(!wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_OK;
@@ -150,7 +150,7 @@ WifiBtStatus d_wifi_bt_join_ap(const char* ssid, const char* pwd) {
  * @param pwd WiFi 网络的密码，为 NULL 时表示使用上次连接的密码
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_rejoin_ap(const char* ssid, const char* password) {
+WifiBtStatus wifi_bt_rejoin_ap(const char* ssid, const char* password) {
     uint8_t dummy;
 
     while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
@@ -160,7 +160,7 @@ WifiBtStatus d_wifi_bt_rejoin_ap(const char* ssid, const char* password) {
         send_raw("AT+WJOIN\r\n");
         if(!wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
     }
-    else d_wifi_bt_join_ap(ssid, password);
+    else wifi_bt_join_ap(ssid, password);
 
     return WIFI_BT_OK;
 }
@@ -169,7 +169,7 @@ WifiBtStatus d_wifi_bt_rejoin_ap(const char* ssid, const char* password) {
  * @brief 查询 WiFi STA 连接状态（AT+LKSTT）
  * @return WIFI_BT_OK 表示已连接，WIFI_BT_ERROR 表示未连接
  */
-WifiBtStatus d_wifi_bt_check_ap(void) {
+WifiBtStatus wifi_bt_check_ap(void) {
     uint8_t dummy;
     while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
     config.frame_parser.reset(&config.frame_parser);
@@ -183,7 +183,7 @@ WifiBtStatus d_wifi_bt_check_ap(void) {
  * @param info 包含连接信息的 WifiBtConnectInfo 结构体，至少需要包含 ssid、password、protocol、role、ip、remote_port 和 local_port 字段
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_connect(WifiBtConnectInfo* info) {
+WifiBtStatus wifi_bt_connect(WifiBtConnectInfo* info) {
     char cmd[128];
     uint8_t dummy;
 
@@ -192,14 +192,14 @@ WifiBtStatus d_wifi_bt_connect(WifiBtConnectInfo* info) {
 
     snprintf(cmd, sizeof(cmd), "AT+SKCT=%d,%d,\"%s\",%d,%d",
         info->protocol, info->role, info->ip, info->remote_port, info->local_port);
-    if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
+    if(wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
     if(!wait_str("+OK=", 4, 3000)) return WIFI_BT_ERROR;
 
     char buf[32] = { 0 };
     uint8_t idx = 0;
     char ch;
-    ms_t start_time = d_systick_get_ms();
-    while(d_systick_get_ms() - start_time < 1000) {
+    ms_t start_time = systick_get_ms();
+    while(systick_get_ms() - start_time < 1000) {
         if(config.rx_buf.read(&config.rx_buf, (uint8_t*)&ch) == RING_BUF_SUCCESS) {
             if(ch == '\r' || ch == '\n') {
                 if(idx > 0)
@@ -208,7 +208,7 @@ WifiBtStatus d_wifi_bt_connect(WifiBtConnectInfo* info) {
             else if(idx < sizeof(buf) - 1) buf[idx++] = (char)ch;
             else return WIFI_BT_ERROR;
         }
-        else s_delay_ms(1);
+        else delay_ms(1);
     }
 
     info->socket_port = (uint16_t)atoi(buf);
@@ -222,11 +222,11 @@ WifiBtStatus d_wifi_bt_connect(WifiBtConnectInfo* info) {
  * @param info 包含连接信息的 WifiBtConnectInfo 结构体，至少需要包含 socket_port 字段
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_disconnect(WifiBtConnectInfo* info) {
+WifiBtStatus wifi_bt_disconnect(WifiBtConnectInfo* info) {
     char cmd[128];
 
     snprintf(cmd, sizeof(cmd), "AT+SKCLS=%d", info->socket_port);
-    if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
+    if(wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
     if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
     return WIFI_BT_OK;
@@ -236,13 +236,13 @@ WifiBtStatus d_wifi_bt_disconnect(WifiBtConnectInfo* info) {
  * @brief 复位 W800 模块并重新初始化（AT+Z）
  * @param mode 工作模式
  */
-WifiBtStatus d_wifi_bt_reset(WifiBtWorkMode mode) {
+WifiBtStatus wifi_bt_reset(WifiBtWorkMode mode) {
     uint8_t dummy;
 
     gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_LOW);
-    s_delay_ms(100);
+    delay_ms(100);
     gpio_write(BSP_IO_PORT_05_PIN_08, BSP_IO_LEVEL_HIGH);
-    s_delay_ms(500);
+    delay_ms(500);
 
     while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
     config.frame_parser.reset(&config.frame_parser);
@@ -260,10 +260,10 @@ WifiBtStatus d_wifi_bt_reset(WifiBtWorkMode mode) {
 
 /**
  * @brief 进入透传模式
- * @param socket_id 要进入透传模式的 socket 连接 ID，通常由 d_wifi_bt_connect 函数返回
+ * @param socket_id 要进入透传模式的 socket 连接 ID，通常由 wifi_bt_connect 函数返回
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_enter_transparent(uint16_t socket_id) {
+WifiBtStatus wifi_bt_enter_transparent(uint16_t socket_id) {
     char cmd[32];
     snprintf(cmd, sizeof(cmd), "AT+SKSDF=%d\r\n", socket_id);
     send_raw(cmd);
@@ -278,20 +278,20 @@ WifiBtStatus d_wifi_bt_enter_transparent(uint16_t socket_id) {
     while(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS);
     config.frame_parser.reset(&config.frame_parser);
 
-    config.last_recv_time = d_systick_get_ms();
+    config.last_recv_time = systick_get_ms();
     return WIFI_BT_OK;
 }
 
 /**
  * @brief 退出透传模式
  */
-void d_wifi_bt_exit_transparent(void) {
+void wifi_bt_exit_transparent(void) {
     if(!config.is_transparent_mode) return;
 
-    s_delay_ms(300);
-    d_uart_write(config.uart, (uint8_t*)"+++", 3);
-    d_uart_wait_tx_complete(config.uart);
-    s_delay_ms(300);
+    delay_ms(300);
+    uart_write(config.uart, (uint8_t*)"+++", 3);
+    uart_wait_tx_complete(config.uart);
+    delay_ms(300);
 
     config.is_transparent_mode = false;
 
@@ -305,10 +305,10 @@ void d_wifi_bt_exit_transparent(void) {
  * @param timeout_ms 心跳超时时间，单位为毫秒
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
+WifiBtStatus wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
     static bool is_connected = false;
     static ms_t last_heartbeat_tick = 0;
-    ms_t now = d_systick_get_ms();
+    ms_t now = systick_get_ms();
     static uint8_t retry_count = 0;
 
     if(is_connected && s_nb_delay_ms(&last_heartbeat_tick, timeout_ms)) {
@@ -320,7 +320,7 @@ WifiBtStatus d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
         heart_frame[header_len + 1] = 0x05;
         memcpy(heart_frame + header_len + 2, "HEART", 5);
 
-        d_wifi_bt_send_frame(*info, heart_frame, (uint16_t)(header_len + 2 + 5));
+        wifi_bt_send_frame(*info, heart_frame, (uint16_t)(header_len + 2 + 5));
     }
 
     if(is_connected && (now - config.last_recv_time > timeout_ms * 3)) {
@@ -329,34 +329,34 @@ WifiBtStatus d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
     }
 
     if(!is_connected) {
-        d_wifi_bt_exit_transparent();
+        wifi_bt_exit_transparent();
 
-        if(d_wifi_bt_check_ap() != WIFI_BT_OK) {
+        if(wifi_bt_check_ap() != WIFI_BT_OK) {
             printf("WiFi 未连接，尝试重连...\r\n");
-            if(d_wifi_bt_rejoin_ap(NULL, NULL) != WIFI_BT_OK) {
+            if(wifi_bt_rejoin_ap(NULL, NULL) != WIFI_BT_OK) {
                 printf("WiFi 重连失败，继续等待...\r\n");
                 return WIFI_BT_WAIT_AP;
             }
         }
 
         printf("尝试链接 Socket...(retry_count=%d)\r\n", retry_count);
-        if(d_wifi_bt_connect(info) == WIFI_BT_OK) {
-            if(d_wifi_bt_enter_transparent(info->socket_port) == WIFI_BT_OK) {
+        if(wifi_bt_connect(info) == WIFI_BT_OK) {
+            if(wifi_bt_enter_transparent(info->socket_port) == WIFI_BT_OK) {
                 is_connected = true;
                 retry_count = 0;
-                config.last_recv_time = d_systick_get_ms();
+                config.last_recv_time = systick_get_ms();
                 printf("连接成功，进入透传模式\r\n");
             }
             else {
-                d_wifi_bt_disconnect(info);
+                wifi_bt_disconnect(info);
                 printf("进入透传模式失败，断开连接重试...\r\n");
             }
         }
         else {
             printf("连接失败，重置模块...\r\n");
             retry_count = 0;
-            if(d_wifi_bt_reset(config.mode) == WIFI_BT_OK)
-                d_wifi_bt_join_ap(info->ssid, info->password);
+            if(wifi_bt_reset(config.mode) == WIFI_BT_OK)
+                wifi_bt_join_ap(info->ssid, info->password);
         }
     }
 
@@ -369,7 +369,7 @@ WifiBtStatus d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
  * @param frame_len 输出参数，指向存储帧数据长度的变量指针
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len) {
+WifiBtStatus wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len) {
     static uint8_t wifi_bt_stable_buf[WIFI_BT_FRAME_BUF_SIZE];
     static uint16_t wifi_bt_stable_len = 0;
     uint8_t* raw_buf;
@@ -380,7 +380,7 @@ WifiBtStatus d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_
     config.frame_parser.finish(&config.frame_parser);
 
     if(raw_len == 5 && memcmp(raw_buf, "ALIVE", 5) == 0) {
-        config.last_recv_time = d_systick_get_ms();
+        config.last_recv_time = systick_get_ms();
         *frame_buf = NULL;
         *frame_len = 0;
         return WIFI_BT_NO_FRAME;
@@ -401,28 +401,28 @@ WifiBtStatus d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_
  * @param length 要发送的数据帧长度
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, uint16_t length) {
+WifiBtStatus wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, uint16_t length) {
     if(config.is_transparent_mode) {
-        d_uart_write(config.uart, frame, length);
-        d_uart_wait_tx_complete(config.uart);
+        uart_write(config.uart, frame, length);
+        uart_wait_tx_complete(config.uart);
 
         return WIFI_BT_OK;
     }
     else {
         char cmd[64];
         snprintf(cmd, sizeof(cmd), "AT+SKSND=%d,%d", info.socket_port, length);
-        if(d_wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
+        if(wifi_bt_send_cmd(cmd) != WIFI_BT_OK) return WIFI_BT_ERROR;
         if(!wait_str("+OK", 3, 1000)) return WIFI_BT_ERROR;
 
         uint8_t dummy;
-        ms_t last_byte_time = d_systick_get_ms();
-        while(d_systick_get_ms() - last_byte_time < 50) {
+        ms_t last_byte_time = systick_get_ms();
+        while(systick_get_ms() - last_byte_time < 50) {
             if(config.rx_buf.read(&config.rx_buf, &dummy) == RING_BUF_SUCCESS)
-                last_byte_time = d_systick_get_ms();
+                last_byte_time = systick_get_ms();
         }
 
-        d_uart_write(config.uart, frame, length);
-        d_uart_wait_tx_complete(config.uart);
+        uart_write(config.uart, frame, length);
+        uart_wait_tx_complete(config.uart);
 
         return WIFI_BT_OK;
     }
@@ -435,7 +435,7 @@ WifiBtStatus d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, 
  * @param length 要发送的字符串数据长度
  * @return WifiBtStatus 枚举类型，表示操作结果
  */
-WifiBtStatus d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t length) {
+WifiBtStatus wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t length) {
     uint8_t frame[config.header_len + 2 + length];
     uint16_t header_len = config.header_len;
 
@@ -448,7 +448,7 @@ WifiBtStatus d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t l
     uint16_t copy_len = (uint16_t)(header_len + 2 + length);
     memcpy(print_buf, frame, copy_len);
 
-    return d_wifi_bt_send_frame(info, (const uint8_t*)frame, (uint16_t)(header_len + 2 + length));
+    return wifi_bt_send_frame(info, (const uint8_t*)frame, (uint16_t)(header_len + 2 + length));
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
@@ -458,8 +458,8 @@ WifiBtStatus d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t l
  * @param str 要发送的字符串数据
  */
 static void send_raw(const char* str) {
-    d_uart_write(config.uart, (uint8_t*)str, (uint16_t)strlen(str));
-    d_uart_wait_tx_complete(config.uart);
+    uart_write(config.uart, (uint8_t*)str, (uint16_t)strlen(str));
+    uart_wait_tx_complete(config.uart);
 }
 
 /**
@@ -472,9 +472,9 @@ static void send_raw(const char* str) {
 static bool wait_str(const char* expected, uint8_t length, uint32_t timeout_ms) {
     int idx = 0;
     char ch;
-    ms_t start_time = d_systick_get_ms();
+    ms_t start_time = systick_get_ms();
 
-    while(d_systick_get_ms() - start_time < timeout_ms) {
+    while(systick_get_ms() - start_time < timeout_ms) {
         if(config.rx_buf.read(&config.rx_buf, (uint8_t*)&ch) == RING_BUF_SUCCESS) {
             if(ch == expected[idx]) {
                 if(++idx == length)
@@ -482,7 +482,7 @@ static bool wait_str(const char* expected, uint8_t length, uint32_t timeout_ms) 
             }
             else idx = (ch == expected[0]) ? 1 : 0;
         }
-        else s_delay_ms(1);
+        else delay_ms(1);
     }
 
     return false;

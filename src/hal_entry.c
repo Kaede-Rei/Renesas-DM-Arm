@@ -1,31 +1,29 @@
 #include "hal_data.h"
 
-// 工具库
-// #include "tools/simple_api.h"
-#include "tools/protocol_parser.h"
-
-// 标准库
-#include <stdint.h>
+/// @brief 标准库
 #include <stdio.h>
-#include <sys/_types.h>
 
-// 驱动层
-#include "drive/d_led.h"
-#include "drive/d_uart.h"
-#include "drive/d_can.h"
-#include "drive/d_dm_motor.h"
-#include "drive/d_systick.h"
-#include "drive/d_wifi_bt.h"
+/// @brief 应用层
+#include "app/packet_parser.h"
 
-// 服务层
-#include "service/s_delay.h"
-#include "service/s_fk_ik.h"
-#include "service/s_comms.h"
+/// @brief 设备层
+#include "device/motor.h"
+#include "device/wifi_bt.h"
 
-// 应用层
-#include "app/fsm.h"
+/// @brief 领域层（机器人）
+#include "domain/arm_kine.h"
 
+/// @brief 基础设施层
+#include "infra/delay.h"
+#include "infra/fsm.h"
+// #include "infra/matrix.h"
+#include "infra/protocol_parser.h"
 
+/// @brief 平台层
+#include "platform/can.h"
+#include "platform/led.h"
+#include "platform/systick.h"
+#include "platform/uart.h"
 
 // 测试函数
 void arm_test(WifiBtConnectInfo* info);
@@ -43,12 +41,12 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  */
 static void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     if(systick.init() != FSP_SUCCESS) while(1);
-    s_delay_ms_init(systick.get_ms);
+    delay_ms_init(systick.get_ms);
 
     uart.init(UART7, uart7_rx_buf);
     wifi.init(UART6, STA, (const uint8_t*)"RENE:", 5);
     can.init();
-    
+
     dm.enable(0x01);
     dm.enable(0x02);
     dm.enable(0x03);
@@ -56,7 +54,7 @@ static void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     dm.enable(0x05);
     dm.enable(0x06);
 
-    s_delay_ms(2000);
+    delay_ms(2000);
     led.on();
     printf("System Init Complete!\r\n");
 
