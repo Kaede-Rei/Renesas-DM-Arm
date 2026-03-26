@@ -507,7 +507,7 @@ static void entry_moving(void) {
 }
 static void exit_moving(void) {}
 static void action_moving(void) {
-    if(s_nb_delay_ms(&move_timer, 5000)) {
+    if(!s_nb_delay_ms(&move_timer, 5000)) {
         for(uint8_t i = 1; i <= 6; ++i) {
             if(!fsm_data.dm_fb_valid[i]) return;
         }
@@ -520,10 +520,10 @@ static void action_moving(void) {
         if(fabsf(fsm_data.dm_fb[5].pos - fsm_data.ik_result.joint_5) > pos_err) return;
         if(fabsf(fsm_data.dm_fb[6].pos - fsm_data.ik_result.joint_6) > pos_err) return;
 
-        fsm_trigger(EVENT_DETECT_ERROR, "移动超时");
+        fsm_trigger(EVENT_MOVE_COMPLETE, NULL);
     }
 
-    fsm_trigger(EVENT_MOVE_COMPLETE, NULL);
+    fsm_trigger(EVENT_DETECT_ERROR, "移动超时");
 }
 
 
