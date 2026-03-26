@@ -1,11 +1,9 @@
 #include "hfsm.h"
+#include "hfsm_config.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
-
-#ifndef HFSM_DEPTH
-#define HFSM_DEPTH 8
-#endif
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
@@ -15,6 +13,8 @@ const struct HfsmInstance hfsm_instance = {
     .clear = hfsm_clear,
     .process = hfsm_process,
     .current = hfsm_get_current_state,
+    .context = hfsm_get_context,
+    .const_context = hfsm_get_const_context,
     .is_descendant_of = hfsm_is_descendant_of,
     .transition = hfsm_transition,
     .has_pending = hfsm_has_pending_event
@@ -27,27 +27,26 @@ static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2);
 static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m);
 static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m);
 static void execute_action(HfsmMachine* m);
-static bool event_filter(HfsmMachine* m, HfsmEventId event_id);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
 void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context) {
     if(m == NULL) return;
 
-    if(initial_state == NULL) return;
-
-    m->current_state = initial_state;
+    m->current_state = NULL;
     m->pending_event.id = HFSM_EVENT_NONE;
     m->pending_event.data = NULL;
     m->context = context;
 
+    if(initial_state == NULL) return;
+
+    m->current_state = initial_state;
     enter_down_to(NULL, initial_state, m);
 }
 
 bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, void* data) {
     if(m == NULL || event_id == HFSM_EVENT_NONE) return false;
     if(m->pending_event.id != HFSM_EVENT_NONE) return false;
-    if(event_filter(m, event_id) == false) return false;
 
     m->pending_event.id = event_id;
     m->pending_event.data = data;
@@ -80,7 +79,11 @@ void hfsm_process(HfsmMachine* m) {
     }
 
     if(m->current_state != NULL && m->current_state->action != NULL) {
+#if HFSM_RUN_PARENT_ACTIONS
         execute_action(m);
+#else
+        m->current_state->action(m);
+#endif
     }
 }
 
@@ -90,7 +93,13 @@ const HfsmState* hfsm_get_current_state(const HfsmMachine* m) {
     return m->current_state;
 }
 
-void* hfsm_get_context(const HfsmMachine* m) {
+void* hfsm_get_context(HfsmMachine* m) {
+    if(m == NULL) return NULL;
+
+    return m->context;
+}
+
+const void* hfsm_get_const_context(const HfsmMachine* m) {
     if(m == NULL) return NULL;
 
     return m->context;
@@ -186,7 +195,12 @@ static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachin
     int depth = 0;
     const HfsmState* s = to;
 
-    while(s && s != from && depth < HFSM_DEPTH) {
+    while(s && s != from) {
+#if HFSM_ENABLE_ASSERT
+        assert(depth < HFSM_DEPTH);
+#else
+        if(depth >= HFSM_DEPTH) return;
+#endif
         path[depth++] = s;
         s = s->parent;
     }
@@ -203,23 +217,4 @@ static void execute_action(HfsmMachine* m) {
         if(s->action) s->action(m);
         s = s->parent;
     }
-}
-
-static bool event_filter(HfsmMachine* m, HfsmEventId event_id) {
-    const HfsmState* s = m->current_state;
-    while(s) {
-        if(s->handle) {
-            HfsmEventId old_event = m->pending_event.id;
-            m->pending_event.id = event_id;
-
-            const HfsmState* next = s->handle(m, &m->pending_event);
-
-            m->pending_event.id = old_event;
-
-            if(next) return true;
-        }
-        s = s->parent;
-    }
-
-    return false;
 }
