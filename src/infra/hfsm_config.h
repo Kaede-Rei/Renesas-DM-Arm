@@ -23,10 +23,10 @@
 #endif
 
 /**
- * @brief 状态机待处理事件队列的最大长度
+ * @brief TODO: 状态机待处理事件队列的最大长度
  */
-#ifndef HFSM_PENDING_MAX
-#define HFSM_PENDING_MAX 8
-#endif
+// #ifndef HFSM_PENDING_MAX
+// #define HFSM_PENDING_MAX 8
+// #endif
 
 #endif

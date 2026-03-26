@@ -17,7 +17,10 @@ const struct HfsmInstance hfsm_instance = {
     .const_context = hfsm_get_const_context,
     .is_descendant_of = hfsm_is_descendant_of,
     .transition = hfsm_transition,
-    .has_pending = hfsm_has_pending_event
+    .has_pending = hfsm_has_pending_event,
+    .res.ignore = hfsm_res_ignore,
+    .res.handled = hfsm_res_handled,
+    .res.transition = hfsm_res_transition
 };
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
@@ -78,13 +81,13 @@ void hfsm_process(HfsmMachine* m) {
         hfsm_clear(m);
     }
 
-    if(m->current_state != NULL && m->current_state->action != NULL) {
+    if(m->current_state == NULL) return;
+
 #if HFSM_RUN_PARENT_ACTIONS
-        execute_action(m);
+    execute_action(m);
 #else
-        m->current_state->action(m);
+    if(m->current_state->action) m->current_state->action(m);
 #endif
-    }
 }
 
 const HfsmState* hfsm_get_current_state(const HfsmMachine* m) {
@@ -140,6 +143,18 @@ bool hfsm_has_pending_event(const HfsmMachine* m) {
     return m->pending_event.id != HFSM_EVENT_NONE;
 }
 
+HfsmResult hfsm_res_ignore(void) {
+    return (HfsmResult) { .type = HFSM_RES_IGNORE, .next_state = NULL };
+}
+
+HfsmResult hfsm_res_handled(void) {
+    return (HfsmResult) { .type = HFSM_RES_HANDLED, .next_state = NULL };
+}
+
+HfsmResult hfsm_res_transition(const HfsmState* next_state) {
+    return (HfsmResult) { .type = HFSM_RES_TRANSITION, .next_state = next_state };
+}
+
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
 static const HfsmState* dispatch(HfsmMachine* m, const HfsmEvent* e) {
@@ -148,9 +163,9 @@ static const HfsmState* dispatch(HfsmMachine* m, const HfsmEvent* e) {
     const HfsmState* state = m->current_state;
     while(state != NULL) {
         if(state->handle != NULL) {
-            const HfsmState* next_state = state->handle(m, e);
-            if(next_state != NULL) {
-                return next_state;
+            HfsmResult result = state->handle(m, e);
+            if(result.type == HFSM_RES_TRANSITION && result.next_state != NULL) {
+                return result.next_state;
             }
         }
         state = state->parent;

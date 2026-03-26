@@ -40,12 +40,37 @@ typedef struct HfsmMachine HfsmMachine;
 typedef struct HfsmState HfsmState;
 
 /**
- * @brief 状态机处理函数类型
+ * @brief 状态机处理结果类型枚举
+ * @param IGNORE 忽略事件
+ * @param HANDLED 事件已处理但不进行状态转换
+ * @param TRANSITION 事件已处理并进行状态转换，next_state 字段指向目标状态
  */
-typedef const HfsmState* (*HfsmHandleFn)(HfsmMachine* m, const HfsmEvent* e);
+typedef enum {
+    HFSM_RES_IGNORE,
+    HFSM_RES_HANDLED,
+    HFSM_RES_TRANSITION
+} HfsmResType;
+
+/**
+ * @brief 状态机处理结果结构体
+ * @param type 处理结果类型
+ * @param next_state 目标状态指针，仅当 type 为 HFSM_RES_TRANSITION 时有效
+ */
+typedef struct {
+    HfsmResType type;
+    const HfsmState* next_state;
+} HfsmResult;
+
+/**
+ * @brief 状态机处理函数类型
+ * @param m 状态机实例指针
+ * @param e 事件指针
+ */
+typedef HfsmResult(*HfsmHandleFn)(HfsmMachine* m, const HfsmEvent* e);
 
 /**
  * @brief 状态机钩子函数类型
+ * @param m 状态机实例指针
  */
 typedef void(*HfsmHookFn)(HfsmMachine* m);
 
@@ -80,6 +105,9 @@ struct HfsmMachine {
     void* context;
 };
 
+/**
+ * @brief 状态机实例单例，包含所有状态机相关的接口函数指针
+ */
 extern const struct HfsmInstance {
     /**
      * @brief 初始化状态机实例
@@ -144,6 +172,30 @@ extern const struct HfsmInstance {
      * @return 若有待处理事件返回 true，否则返回 false
      */
     bool(*has_pending)(const HfsmMachine* m);
+    /**
+     * @brief 状态机处理结果接口函数集合
+     * @param ignore 忽略事件
+     * @param handled 事件已处理但不进行状态转换
+     * @param transition 进行状态转换，参数为目标状态指针
+     */
+    struct {
+        /**
+         * @brief 忽略事件
+         * @return HfsmResult 处理结果结构体，type 字段为 HFSM_RES_IGNORE
+         */
+        HfsmResult(*ignore)(void);
+        /**
+         * @brief 事件已处理但不进行状态转换
+         * @return HfsmResult 处理结果结构体，type 字段为 HFSM_RES_HANDLED
+         */
+        HfsmResult(*handled)(void);
+        /**
+         * @brief 进行状态转换
+         * @param next_state 目标状态指针
+         * @return HfsmResult 处理结果结构体，type 字段为 HFSM_RES_TRANSITION，next_state 字段指向目标状态
+         */
+        HfsmResult(*transition)(const HfsmState* next_state);
+    } res;
 } hfsm_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
@@ -158,5 +210,8 @@ const void* hfsm_get_const_context(const HfsmMachine* m);
 bool hfsm_is_descendant_of(const HfsmState* state, const HfsmState* ancestor);
 bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state);
 bool hfsm_has_pending_event(const HfsmMachine* m);
+HfsmResult hfsm_res_ignore(void);
+HfsmResult hfsm_res_handled(void);
+HfsmResult hfsm_res_transition(const HfsmState* next_state);
 
 #endif

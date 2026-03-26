@@ -1,0 +1,9 @@
+// 业务状态定义
+SX(init, NULL)
+SX(normal, NULL)
+    SX(idle, &state_normal)
+    SX(searching, &state_normal)
+    SX(ik_pose, &state_normal)
+    SX(moving, &state_normal)
+    SX(lasering, &state_normal)
+SX(error, NULL)
