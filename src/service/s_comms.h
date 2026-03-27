@@ -70,6 +70,11 @@ extern const struct CommsInterface {
      * @return CommsStatus 状态码
      */
     CommsStatus(*get_weed)(WeedData* data);
+    /**
+     * @brief 重置数据
+     * @return CommsStatus 状态码
+     */
+    CommsStatus(*reset)(void);
 } s_comms_instance;
 #undef SX
 
@@ -77,5 +82,6 @@ extern const struct CommsInterface {
 
 CommsStatus s_comms_process(const uint8_t* packet, size_t length);
 CommsStatus s_comms_get_weed(WeedData* data);
+CommsStatus s_comms_reset(void);
 
 #endif

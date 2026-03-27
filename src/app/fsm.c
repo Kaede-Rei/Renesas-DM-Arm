@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stddef.h>
-#include <math.h>
 
 #include "fsm.h"
 #include "tools/matrix.h"
@@ -109,6 +108,10 @@ static void enter_down_to(State* from, State* to);
 static void execute_action(void);
 static void reset_fsm_data(void);
 static bool event_filter(Event event);
+
+// ! ========================= 私 有 函 数 声 明 ========================= ! //
+
+static bool generate_aim_pose(Vector3 source, Vector3 target, Pose* out);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
@@ -283,6 +286,8 @@ static State* handle_normal(void) {
     switch(cur.msg.event) {
         case EVENT_DETECT_ERROR:
             return &state_error;
+        case EVENT_FINISH:
+            return &state_finish;
         default:
             return NULL;
     }
@@ -316,7 +321,7 @@ static void action_idle(void) {}
 static State* handle_searching(void) {
     switch(cur.msg.event) {
         case EVENT_SEARCH_COMPLETE:
-            return &state_ik_pose;
+            return &state_moving;
         default:
             return NULL;
     }
@@ -332,96 +337,55 @@ static void entry_searching(void) {
 }
 static void exit_searching(void) {}
 static void action_searching(void) {
-    Pose start_pose;
-    // TODO: 搜索时使用的种子位姿
+    Vector3 ideal_pos = { 0.0f, 0.2f, 0.3f };
+    Vector3 target_pos = { fsm_data.weed.x, fsm_data.weed.y, fsm_data.weed.z };
     SixDofJoint seed_joints = { 0.0f, 0.6f, 1.14f, -1.06f, 0.0f, 0.0f };
-    arm.fk(&seed_joints, &start_pose);
 
-    start_pose.position.x = 0.0f;
-    start_pose.position.y = 0.2f;
-    start_pose.position.z = 0.3f;
+    float offsets[] = { 0.0f, 0.02f, -0.02f, 0.05f, -0.05f };
+    int num_offsets = sizeof(offsets) / sizeof(offsets[0]);
 
-    Vector3 aim_dir;
-    aim_dir.x = fsm_data.weed.x - start_pose.position.x;
-    aim_dir.y = fsm_data.weed.y - start_pose.position.y;
-    aim_dir.z = fsm_data.weed.z - start_pose.position.z;
+    bool found = false;
+    Pose best_pose;
 
-    float aim_norm;
-    vec3_norm(&aim_dir, &aim_norm);
-    if(aim_norm < 1e-8f) {
-        fsm_trigger(EVENT_DETECT_ERROR, "目标位置无效");
-        return;
+    printf("[FSM] 开始瞄准位姿搜索算法，目标:(%.2f, %.2f, %.2f)...\r\n", target_pos.x, target_pos.y, target_pos.z);
+
+    for(int i = 0; i < num_offsets && !found; i++) {
+        for(int j = 0; j < num_offsets && !found; j++) {
+            for(int k = 0; k < num_offsets && !found; k++) {
+
+                Vector3 search_pos = ideal_pos;
+                search_pos.x += offsets[i];
+                search_pos.y += offsets[j];
+                search_pos.z += offsets[k];
+
+                Pose candidate_pose;
+                if(!generate_aim_pose(search_pos, target_pos, &candidate_pose)) {
+                    continue;
+                }
+                if(arm.ik(&candidate_pose, &fsm_data.ik_result, &seed_joints, IK_MODE_FULL_POSE) == ARM_STATUS_SUCCESS) {
+                    best_pose = candidate_pose;
+                    found = true;
+                }
+            }
+        }
     }
 
-    vec3_normalize(&aim_dir, &aim_dir);
-    Vector3 refer_dir = { 0.0f, 0.0f, 1.0f };
-    float dot;
-    vec3_dot(&aim_dir, &refer_dir, &dot);
-    if(fabsf(dot) > 0.95f) { refer_dir = (Vector3){ 0.0f, 1.0f, 0.0f }; }
+    if(found) {
+        fsm_data.target_pose = best_pose;
 
-    Vector3 cross_x;
-    vec3_cross(&aim_dir, &refer_dir, &cross_x);
-    float cross_norm;
-    vec3_norm(&cross_x, &cross_norm);
-    if(cross_norm < 1e-8f) {
-        fsm_trigger(EVENT_DETECT_ERROR, "瞄准姿态构造失败");
-        return;
+        printf("[FSM] IK 搜索成功！采用发射点: (%.2f, %.2f, %.2f)\r\n",
+            best_pose.position.x, best_pose.position.y, best_pose.position.z);
+        printf("[FSM] 关节解: J1=%.2f, J2=%.2f, J3=%.2f, J4=%.2f, J5=%.2f, J6=%.2f\r\n",
+            fsm_data.ik_result.joint_1, fsm_data.ik_result.joint_2, fsm_data.ik_result.joint_3,
+            fsm_data.ik_result.joint_4, fsm_data.ik_result.joint_5, fsm_data.ik_result.joint_6);
+
+        fsm_trigger(EVENT_SEARCH_COMPLETE, NULL);
     }
-    vec3_normalize(&cross_x, &cross_x);
-
-    Vector3 cross_y;
-    vec3_cross(&aim_dir, &cross_x, &cross_y);
-    float cross_y_norm;
-    vec3_norm(&cross_y, &cross_y_norm);
-    if(cross_y_norm < 1e-8f) {
-        fsm_trigger(EVENT_DETECT_ERROR, "瞄准姿态构造失败");
-        return;
-    }
-    vec3_normalize(&cross_y, &cross_y);
-
-    Matrix R; float R_data[3 * 3]; matrix(&R, 3, 3, R_data);
-    R.pdata[0 * 3 + 0] = cross_x.x; R.pdata[0 * 3 + 1] = cross_y.x; R.pdata[0 * 3 + 2] = aim_dir.x;
-    R.pdata[1 * 3 + 0] = cross_x.y; R.pdata[1 * 3 + 1] = cross_y.y; R.pdata[1 * 3 + 2] = aim_dir.y;
-    R.pdata[2 * 3 + 0] = cross_x.z; R.pdata[2 * 3 + 1] = cross_y.z; R.pdata[2 * 3 + 2] = aim_dir.z;
-
-    Quaternion quat;
-    matrix_to_quat(&R, (float*)&quat);
-    quat_normalize((float*)&quat, (float*)&quat);
-    start_pose.orientation = quat;
-
-    // TODO: 暂时只用 start_pose
-    fsm_data.target_pose = start_pose;
-    fsm_trigger(EVENT_SEARCH_COMPLETE, NULL);
-}
-
-
-/**
- * @brief ik_pose 状态
- */
-static State* handle_ik_pose(void) {
-    switch(cur.msg.event) {
-        case EVENT_IK_COMPLETE:
-            return &state_moving;
-        default:
-            return NULL;
+    else {
+        printf("[FSM] 警告：IK 空间搜索失败，此坐标不可达\r\n");
+        fsm_trigger(EVENT_DETECT_ERROR, "IK 网格搜索无解");
     }
 }
-static void entry_ik_pose(void) {
-    printf("[FSM] 进入 IK 计算，目标位姿：position=(%.2f, %.2f, %.2f), orientation=(w=%.2f, x=%.2f, y=%.2f, z=%.2f)\r\n",
-        fsm_data.target_pose.position.x, fsm_data.target_pose.position.y, fsm_data.target_pose.position.z,
-        fsm_data.target_pose.orientation.w, fsm_data.target_pose.orientation.x, fsm_data.target_pose.orientation.y, fsm_data.target_pose.orientation.z);
-}
-static void exit_ik_pose(void) {}
-static void action_ik_pose(void) {
-    SixDofJoint seed_joints = { 0.0f, 0.6f, 1.14f, -1.06f, 0.0f, 0.0f };
-    if(arm.ik(&fsm_data.target_pose, &fsm_data.ik_result, &seed_joints, IK_MODE_FULL_POSE) != ARM_STATUS_SUCCESS) {
-        fsm_trigger(EVENT_DETECT_ERROR, "IK 计算失败");
-        return;
-    }
-    printf("[FSM] IK 计算完成，关节角度：joint_1=%.2f, joint_2=%.2f, joint_3=%.2f, joint_4=%.2f, joint_5=%.2f, joint_6=%.2f\r\n", fsm_data.ik_result.joint_1, fsm_data.ik_result.joint_2, fsm_data.ik_result.joint_3, fsm_data.ik_result.joint_4, fsm_data.ik_result.joint_5, fsm_data.ik_result.joint_6);
-    fsm_trigger(EVENT_IK_COMPLETE, NULL);
-}
-
 
 /**
  * @brief moving 状态
@@ -500,6 +464,54 @@ static void action_lasering(void) {
 
 
 /**
+ * @brief finish 状态
+ */
+static State* handle_finish(void) {
+    switch(cur.msg.event) {
+        case EVENT_FINISH_COMPLETE:
+            return &state_idle;
+        default:
+            return NULL;
+    }
+}
+static void entry_finish(void) {
+    printf("[FSM] 进入完成状态...\r\n");
+    dm.set_pos_spd(0x01, 0.0f, 1.57f);
+    dm.set_pos_spd(0x02, 0.0f, 1.57f);
+    dm.set_pos_spd(0x03, 0.0f, 1.57f);
+    dm.set_pos_spd(0x04, 0.0f, 1.57f);
+    dm.set_pos_spd(0x05, 0.0f, 1.57f);
+    dm.set_pos_spd(0x06, 0.0f, 1.57f);
+
+    for(uint8_t i = 1; i <= 6; ++i) {
+        fsm_data.dm_fb_valid[i] = false;
+    }
+
+    move_timer = 0;
+}
+static void exit_finish(void) {}
+static void action_finish(void) {
+    if(!s_nb_delay_ms(&move_timer, 10000)) {
+        // for(uint8_t i = 1; i <= 6; ++i) {
+        //     if(!fsm_data.dm_fb_valid[i]) return;
+        // }
+
+        // float pos_err = 0.1f;
+        // if(fabsf(fsm_data.dm_fb[1].pos - 0.0f) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[2].pos - 0.0f) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[3].pos - 0.0f) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[4].pos - 0.0f) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[5].pos - 0.0f) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[6].pos - 0.0f) > pos_err) return;
+
+        printf("[FSM] 复位完成\r\n");
+        fsm_trigger(EVENT_FINISH_COMPLETE, NULL);
+    }
+    fsm_trigger(EVENT_DETECT_ERROR, "复位超时");
+}
+
+
+/**
  * @brief error 状态
  */
 static State* handle_error(void) {
@@ -525,4 +537,44 @@ static void action_error(void) {
     }
 }
 
+static bool generate_aim_pose(Vector3 source, Vector3 target, Pose* out) {
+    out->position.x = source.x;
+    out->position.y = source.y;
+    out->position.z = source.z;
 
+    Vector3 aim_dir = { target.x - source.x, target.y - source.y, target.z - source.z };
+    float aim_norm;
+    vec3_norm(&aim_dir, &aim_norm);
+    if(aim_norm < 1e-4f) return false;
+    vec3_normalize(&aim_dir, &aim_dir);
+    Vector3 z_axis = aim_dir;
+
+    Vector3 world_up = { 0.0f, 0.0f, 1.0f };
+    Vector3 x_axis;
+    vec3_cross(&world_up, &z_axis, &x_axis);
+    float x_norm;
+    vec3_norm(&x_axis, &x_norm);
+
+    if(x_norm < 1e-3f) {
+        world_up = (Vector3){ 0.0f, 1.0f, 0.0f };
+        vec3_cross(&world_up, &z_axis, &x_axis);
+        vec3_norm(&x_axis, &x_norm);
+    }
+    vec3_normalize(&x_axis, &x_axis);
+
+    Vector3 y_axis;
+    vec3_cross(&z_axis, &x_axis, &y_axis);
+    vec3_normalize(&y_axis, &y_axis);
+
+    Matrix R; float R_data[3 * 3]; matrix(&R, 3, 3, R_data);
+    R.pdata[0 * 3 + 0] = x_axis.x; R.pdata[0 * 3 + 1] = y_axis.x; R.pdata[0 * 3 + 2] = z_axis.x;
+    R.pdata[1 * 3 + 0] = x_axis.y; R.pdata[1 * 3 + 1] = y_axis.y; R.pdata[1 * 3 + 2] = z_axis.y;
+    R.pdata[2 * 3 + 0] = x_axis.z; R.pdata[2 * 3 + 1] = y_axis.z; R.pdata[2 * 3 + 2] = z_axis.z;
+
+    Quaternion quat;
+    matrix_to_quat(&R, (float*)&quat);
+    quat_normalize((float*)&quat, (float*)&quat);
+    out->orientation = quat;
+
+    return true;
+}

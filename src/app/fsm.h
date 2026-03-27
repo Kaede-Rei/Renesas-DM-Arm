@@ -27,9 +27,9 @@
     SX(normal,      NULL)  \
         SX(idle,        &state_normal)  \
         SX(searching,   &state_normal)  \
-        SX(ik_pose,     &state_normal)  \
         SX(moving,      &state_normal)  \
         SX(lasering,    &state_normal)  \
+        SX(finish,      &state_normal)  \
     SX(error,       NULL)  \
 
 /**
@@ -46,9 +46,10 @@
     EX(INIT_COMPLETE) \
     EX(START_SEARCH) \
     EX(SEARCH_COMPLETE) \
-    EX(IK_COMPLETE) \
     EX(MOVE_COMPLETE) \
     EX(LASER_COMPLETE) \
+    EX(FINISH) \
+    EX(FINISH_COMPLETE) \
     EX(DETECT_ERROR) \
     EX(ERROR_COMPLETE) \
 

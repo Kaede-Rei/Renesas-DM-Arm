@@ -114,6 +114,7 @@ void hal_entry(void) {
     static uint16_t feedback_fps = 0;
 
     static WeedData weed_data;
+    static bool finish = false;
     static uint8_t* frame_buf = NULL;
     static uint16_t frame_len = 0;
 
@@ -127,14 +128,23 @@ void hal_entry(void) {
             if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
                 comms.process(frame_buf, frame_len);
                 comms.get_weed(&weed_data);
-                if(weed_data.confidence > 0.0f) {
-                    if(!fsm_trigger(EVENT_START_SEARCH, &weed_data)) {
-                        printf("[FSM] 无法触发事件：%d\r\n", EVENT_START_SEARCH);
-                    }
+                if(weed_data.id == 0xFF) {
+                    printf("[FSM] 杂草已全部处理完毕\r\n");
+                    comms.reset();
+                    weed_data = (WeedData){ 0 };
+                    fsm_trigger(EVENT_FINISH, NULL);
+                    finish = true;
                 }
-                if(frame_len == 8 && memcmp((const char*)frame_buf, "Laser OK", 8) == 0) {
-                    if(!fsm_trigger(EVENT_LASER_COMPLETE, NULL)) {
-                        printf("[FSM] 无法触发事件：%d\r\n", EVENT_LASER_COMPLETE);
+                if(finish == false) {
+                    if(weed_data.confidence > 0.0f) {
+                        if(!fsm_trigger(EVENT_START_SEARCH, &weed_data)) {
+                            printf("[FSM] 无法触发事件：%d\r\n", EVENT_START_SEARCH);
+                        }
+                    }
+                    if(frame_len == 8 && memcmp((const char*)frame_buf, "Laser OK", 8) == 0) {
+                        if(!fsm_trigger(EVENT_LASER_COMPLETE, NULL)) {
+                            printf("[FSM] 无法触发事件：%d\r\n", EVENT_LASER_COMPLETE);
+                        }
                     }
                 }
             }

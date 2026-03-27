@@ -24,7 +24,8 @@ const struct CommsInterface s_comms_instance = {
         #undef SX
     },
     .process = s_comms_process,
-    .get_weed = s_comms_get_weed
+    .get_weed = s_comms_get_weed,
+    .reset = s_comms_reset
 };
 #define comms s_comms_instance
 
@@ -61,6 +62,15 @@ CommsStatus s_comms_get_weed(WeedData* data) {
     if(data == NULL) return comms.INVALID_ARG;
 
     *data = weed_comms;
+    return comms.OK;
+}
+
+/**
+ * @brief 重置数据
+ * @return CommsStatus 状态码
+ */
+CommsStatus s_comms_reset(void) {
+    weed_comms = (WeedData){ 0 };
     return comms.OK;
 }
 
