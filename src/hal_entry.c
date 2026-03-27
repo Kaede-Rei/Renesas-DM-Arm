@@ -126,8 +126,8 @@ void hal_entry(void) {
         gpio_read(BSP_IO_PORT_00_PIN_00, &fault_restore);
         if(fault_restore == BSP_IO_LEVEL_LOW) {
             printf("[FSM] 恢复开关被按下，触发错误恢复...\r\n");
-            if(!mission.post(MISSION_EVENT_ERROR_COMPLETE, NULL)) {
-                printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_ERROR_COMPLETE);
+            if(!mission.post(mission.ERROR_COMPLETE, NULL)) {
+                printf("[FSM] 无法触发事件：%d\r\n", mission.ERROR_COMPLETE);
             }
         }
 
@@ -141,20 +141,20 @@ void hal_entry(void) {
                         printf("[FSM] 杂草已全部处理完毕\r\n");
                         weed_data = (WeedData){ 0 };
 
-                        if(!mission.post(MISSION_EVENT_FINISH, NULL)) {
-                            printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_FINISH);
+                        if(!mission.post(mission.FINISH, NULL)) {
+                            printf("[FSM] 无法触发事件：%d\r\n", mission.FINISH);
                         }
                     }
                     else if(weed_data.confidence > 0.0f) {
-                        if(!mission.post(MISSION_EVENT_START_SEARCH, &weed_data)) {
-                            printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_START_SEARCH);
+                        if(!mission.post(mission.START_SEARCH, &weed_data)) {
+                            printf("[FSM] 无法触发事件：%d\r\n", mission.START_SEARCH);
                         }
                     }
                 }
 
                 if(frame_len == 8 && memcmp((const char*)frame_buf, "Laser OK", 8) == 0) {
-                    if(!mission.post(MISSION_EVENT_LASER_COMPLETE, NULL)) {
-                        printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_LASER_COMPLETE);
+                    if(!mission.post(mission.LASER_COMPLETE, NULL)) {
+                        printf("[FSM] 无法触发事件：%d\r\n", mission.LASER_COMPLETE);
                     }
                 }
             }

@@ -34,15 +34,42 @@ typedef enum {
 } MissionEvent;
 #undef EX
 
-#define EX(name) .name = MISSION_EVENT_##name,
+#define EX(name) const MissionEvent name;
 extern const struct MissionInstance {
+    /**
+     * @brief 初始化函数，参数为 WiFi 连接信息指针
+     * @param info WiFi 连接信息指针，包含 SSID 和密码等连接参数
+     */
     void(*init)(WifiBtConnectInfo* info);
+    /**
+     * @brief 事件发布函数，参数为事件 ID 和可选数据指针
+     * @param event 事件 ID，需为 MissionEvent 枚举值
+     * @param data 事件数据指针，具体数据类型根据事件而定，调用者应确保数据在状态机处理期间有效
+     * @return 发布是否成功，成功返回 true，失败返回 false（如事件无效或状态机未初始化）
+     */
     bool(*post)(MissionEvent event, void* data);
+    /**
+     * @brief 状态机处理函数，需在主循环中定期调用以处理事件和状态转换
+     */
     void(*process)(void);
+    /**
+     * @brief 电机反馈更新函数，参数为电机反馈数据
+     * @param feedback 电机反馈数据结构，包含电机 ID、位置、速度等信息
+     */
     void(*update_dm_feedback)(DmMotorFeedback feedback);
-
+    /**
+     * @brief 获取当前状态名称函数，返回字符串
+     * @return 当前状态的字符串名称，如果状态机未初始化或状态无效则返回 "null"
+     */
     const char* (*state)(void);
+    /**
+     * @brief 获取当前业务上下文函数，返回指向 MissionContext 的指针
+     * @return 指向当前业务上下文的指针，调用者应避免修改返回的上下文数据
+     */
     const MissionContext* (*context)(void);
+    struct {
+#include "mission_def_event.inc"
+    };
 } mission_instance;
 #undef EX
 

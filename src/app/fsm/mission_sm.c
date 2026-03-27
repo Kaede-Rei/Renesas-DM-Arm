@@ -29,7 +29,12 @@ const struct MissionInstance mission_instance = {
     .process = mission_sm_process,
     .update_dm_feedback = mission_sm_update_dm_feedback,
     .state = mission_sm_state,
-    .context = mission_sm_context
+    .context = mission_sm_context,
+    {
+        #define EX(name) .name = MISSION_EVENT_##name,
+        #include "mission_def_event.inc"
+        #undef EX
+    }
 };
 
 static HfsmMachine s_machine;
