@@ -45,11 +45,15 @@ typedef struct HfsmState HfsmState;
  * @param HANDLED 事件已处理但不进行状态转换
  * @param TRANSITION 事件已处理并进行状态转换，next_state 字段指向目标状态
  */
+#define HFSM_RES_TYPE \
+    RX(IGNORE) \
+    RX(HANDLED) \
+    RX(TRANSITION)
+#define RX(name) HFSM_RES_##name,
 typedef enum {
-    HFSM_RES_IGNORE,
-    HFSM_RES_HANDLED,
-    HFSM_RES_TRANSITION
+    HFSM_RES_TYPE
 } HfsmResType;
+#undef RX
 
 /**
  * @brief 状态机处理结果结构体
@@ -108,6 +112,7 @@ struct HfsmMachine {
 /**
  * @brief 状态机实例单例，包含所有状态机相关的接口函数指针
  */
+#define RX(name) const HfsmResType name;
 extern const struct HfsmInstance {
     /**
      * @brief 初始化状态机实例
@@ -139,7 +144,7 @@ extern const struct HfsmInstance {
      * @param m 状态机实例指针
      * @return 当前状态指针，若 m 为 NULL 则返回 NULL
      */
-    const HfsmState* (*current)(const HfsmMachine* m);
+    const HfsmState* (*state)(const HfsmMachine* m);
     /**
      * @brief 获取状态机的上下文指针
      * @param m 状态机实例指针
@@ -173,7 +178,7 @@ extern const struct HfsmInstance {
      */
     bool(*has_pending)(const HfsmMachine* m);
     /**
-     * @brief 状态机处理结果接口函数集合
+     * @brief 状态机处理结果类型枚举与相应接口函数
      * @param ignore 忽略事件
      * @param handled 事件已处理但不进行状态转换
      * @param transition 进行状态转换，参数为目标状态指针
@@ -195,8 +200,10 @@ extern const struct HfsmInstance {
          * @return HfsmResult 处理结果结构体，type 字段为 HFSM_RES_TRANSITION，next_state 字段指向目标状态
          */
         HfsmResult(*transition)(const HfsmState* next_state);
+        HFSM_RES_TYPE
     } res;
 } hfsm_instance;
+#undef RX
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 

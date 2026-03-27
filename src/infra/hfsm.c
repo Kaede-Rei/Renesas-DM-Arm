@@ -7,25 +7,31 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
+#define RX(name) .name = HFSM_RES_##name,
 const struct HfsmInstance hfsm_instance = {
     .init = hfsm_init,
     .post = hfsm_post,
     .clear = hfsm_clear,
     .process = hfsm_process,
-    .current = hfsm_get_current_state,
+    .state = hfsm_get_current_state,
     .context = hfsm_get_context,
     .const_context = hfsm_get_const_context,
     .is_descendant_of = hfsm_is_descendant_of,
     .transition = hfsm_transition,
     .has_pending = hfsm_has_pending_event,
-    .res.ignore = hfsm_res_ignore,
-    .res.handled = hfsm_res_handled,
-    .res.transition = hfsm_res_transition
+    .res = {
+        .ignore = hfsm_res_ignore,
+        .handled = hfsm_res_handled,
+        .transition = hfsm_res_transition,
+        HFSM_RES_TYPE
+    }
 };
+#undef RX
+#define hfsm hfsm_instance
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-static const HfsmState* dispatch(HfsmMachine* m, const HfsmEvent* e);
+static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e);
 static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2);
 static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m);
 static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m);
@@ -69,13 +75,13 @@ void hfsm_process(HfsmMachine* m) {
 
     const HfsmState* current_state = m->current_state;
     if(m->pending_event.id != HFSM_EVENT_NONE) {
-        const HfsmState* next_state = dispatch(m, &m->pending_event);
+        HfsmResult result = dispatch(m, &m->pending_event);
 
-        if(next_state != NULL && next_state != current_state) {
-            const HfsmState* lca = find_lca(current_state, next_state);
+        if(result.type == HFSM_RES_TRANSITION && result.next_state != NULL && result.next_state != current_state) {
+            const HfsmState* lca = find_lca(current_state, result.next_state);
             exit_up_to(current_state, lca, m);
-            enter_down_to(lca, next_state, m);
-            m->current_state = next_state;
+            enter_down_to(lca, result.next_state, m);
+            m->current_state = result.next_state;
         }
 
         hfsm_clear(m);
@@ -127,7 +133,6 @@ bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state) {
     if(current_state == target_state) return true;
 
     const HfsmState* lca = find_lca(current_state, target_state);
-    if(lca == NULL) return false;
 
     exit_up_to(current_state, lca, m);
     enter_down_to(lca, target_state, m);
@@ -143,35 +148,39 @@ bool hfsm_has_pending_event(const HfsmMachine* m) {
     return m->pending_event.id != HFSM_EVENT_NONE;
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waggregate-return"
+
 HfsmResult hfsm_res_ignore(void) {
-    return (HfsmResult) { .type = HFSM_RES_IGNORE, .next_state = NULL };
+    return (HfsmResult) { .type = hfsm.res.IGNORE, .next_state = NULL };
 }
 
 HfsmResult hfsm_res_handled(void) {
-    return (HfsmResult) { .type = HFSM_RES_HANDLED, .next_state = NULL };
+    return (HfsmResult) { .type = hfsm.res.HANDLED, .next_state = NULL };
 }
 
 HfsmResult hfsm_res_transition(const HfsmState* next_state) {
-    return (HfsmResult) { .type = HFSM_RES_TRANSITION, .next_state = next_state };
+    return (HfsmResult) { .type = hfsm.res.TRANSITION, .next_state = next_state };
 }
+
+#pragma GCC diagnostic pop
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
-static const HfsmState* dispatch(HfsmMachine* m, const HfsmEvent* e) {
-    if(m == NULL || e == NULL || m->current_state == NULL) return NULL;
+static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e) {
+    if(m == NULL || e == NULL || m->current_state == NULL) return hfsm.res.ignore();
 
     const HfsmState* state = m->current_state;
     while(state != NULL) {
         if(state->handle != NULL) {
             HfsmResult result = state->handle(m, e);
-            if(result.type == HFSM_RES_TRANSITION && result.next_state != NULL) {
-                return result.next_state;
-            }
+            if(result.type == HFSM_RES_HANDLED) return result;
+            if(result.type == HFSM_RES_TRANSITION && result.next_state != NULL) return result;
         }
         state = state->parent;
     }
 
-    return m->current_state;
+    return hfsm.res.ignore();
 }
 
 static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2) {
