@@ -533,7 +533,7 @@ static void exit_moving(HfsmMachine* m) {
 static void action_moving(HfsmMachine* m) {
     MissionContext* ctx = ctx_of(m);
 
-    if(all_feedback_ready(ctx) && joints_reached_target(ctx, 0.1f)) {
+    if(all_feedback_ready(ctx) && joints_reached_target(ctx, 0.05f)) {
         printf("[FSM] 移动完成，进入激光状态...\r\n");
         post_event(MISSION_EVENT_MOVE_COMPLETE, NULL);
         return;
