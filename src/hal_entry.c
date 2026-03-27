@@ -137,7 +137,7 @@ void hal_entry(void) {
                 if(comms.process(frame_buf, frame_len) == comms.OK) {
                     comms.get_weed(&weed_data);
 
-                    if(weed_data.id == 0xFF) {
+                    if(weed_data.id == 18) {
                         printf("[FSM] 杂草已全部处理完毕\r\n");
                         weed_data = (WeedData){ 0 };
 

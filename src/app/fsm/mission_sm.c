@@ -352,6 +352,7 @@ static bool search_reachable_pose(MissionContext* ctx) {
                 SixDofJoint probe_joints = { 0 };
                 if(arm.ik(&candidate_pose, &probe_joints, &seed_joints, IK_MODE_FULL_POSE) == ARM_STATUS_SUCCESS) {
                     ctx->target_pose = candidate_pose;
+                    ctx->target_pose.position.y -= 0.05f;
                     ctx->ik_result = probe_joints;
                     return true;
                 }
