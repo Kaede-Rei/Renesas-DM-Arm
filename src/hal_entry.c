@@ -5,6 +5,7 @@
 
 /// @brief 应用层
 #include "app/packet_parser.h"
+#include "app/fsm/mission_sm.h"
 
 /// @brief 设备层
 #include "device/motor.h"
@@ -15,15 +16,17 @@
 
 /// @brief 基础设施层
 #include "infra/delay.h"
-#include "infra/fsm.h"
+// #include "infra/hfsm.h"
 // #include "infra/matrix.h"
 #include "infra/protocol_parser.h"
 
 /// @brief 平台层
 #include "platform/can.h"
 #include "platform/led.h"
+#include "platform/simple_api.h"
 #include "platform/systick.h"
 #include "platform/uart.h"
+#include "ra/fsp/src/bsp/mcu/all/bsp_io.h"
 
 // 测试函数
 void arm_test(WifiBtConnectInfo* info);
@@ -76,7 +79,7 @@ static void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     };
     arm.init(&mdh);
 
-    fsm_init(info);
+    mission.init(info);
 }
 
 /*******************************************************************************************************************//**
@@ -116,30 +119,49 @@ void hal_entry(void) {
     static uint16_t frame_len = 0;
 
     static WifiBtStatus net_status;
+    static bsp_io_level_t fault_restore;
 
     while(1) {
-        fsm_process();
+        mission.process();
+        gpio_read(BSP_IO_PORT_00_PIN_00, &fault_restore);
+        if(fault_restore == BSP_IO_LEVEL_LOW) {
+            printf("[FSM] 恢复开关被按下，触发错误恢复...\r\n");
+            if(!mission.post(MISSION_EVENT_ERROR_COMPLETE, NULL)) {
+                printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_ERROR_COMPLETE);
+            }
+        }
 
         net_status = wifi.heartbeat(&info, 2000);
         if(net_status == wifi.OK) {
             if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
-                comms.process(frame_buf, frame_len);
-                comms.get_weed(&weed_data);
-                if(weed_data.confidence > 0.8) {
-                    if(!fsm_trigger(EVENT_START_SEARCH, &weed_data)) {
-                        printf("[FSM] 无法触发事件：%d\r\n", EVENT_START_SEARCH);
+                if(comms.process(frame_buf, frame_len) == comms.OK) {
+                    comms.get_weed(&weed_data);
+
+                    if(weed_data.id == 0xFF) {
+                        printf("[FSM] 杂草已全部处理完毕\r\n");
+                        weed_data = (WeedData){ 0 };
+
+                        if(!mission.post(MISSION_EVENT_FINISH, NULL)) {
+                            printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_FINISH);
+                        }
+                    }
+                    else if(weed_data.confidence > 0.0f) {
+                        if(!mission.post(MISSION_EVENT_START_SEARCH, &weed_data)) {
+                            printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_START_SEARCH);
+                        }
                     }
                 }
+
                 if(frame_len == 8 && memcmp((const char*)frame_buf, "Laser OK", 8) == 0) {
-                    if(!fsm_trigger(EVENT_LASER_COMPLETE, NULL)) {
-                        printf("[FSM] 无法触发事件：%d\r\n", EVENT_LASER_COMPLETE);
+                    if(!mission.post(MISSION_EVENT_LASER_COMPLETE, NULL)) {
+                        printf("[FSM] 无法触发事件：%d\r\n", MISSION_EVENT_LASER_COMPLETE);
                     }
                 }
             }
         }
 
         while(dm.update(&feedback) == dm.OK) {
-            fsm_update_dm_feedback(feedback);
+            mission.update_dm_feedback(feedback);
             ++feedback_fps;
         }
         if(s_nb_delay_ms(&dm_update_task, 20)) {
@@ -153,17 +175,14 @@ void hal_entry(void) {
 
         if(s_nb_delay_ms(&printf_task, 2000)) {
             printf("Net Status: %d, DM FPS: %d, WEED: %u, %.2f, %.2f, %.2f, %.2f\r\n", net_status, feedback_fps, weed_data.id, weed_data.x, weed_data.y, weed_data.z, weed_data.confidence);
-
             feedback_fps = 0;
         }
     }
 
-
-
     /* Wake up 2nd core if this is first core and we are inside a multicore project. */
 #if (0 == _RA_CORE) && (1 == BSP_MULTICORE_PROJECT) && !BSP_TZ_NONSECURE_BUILD
 
-#if BSP_TZ_SECURE_BUILD
+#if BSP_TZ_SECURE_BUILD
     /* Take semaphore so 2nd core can clear it */
     R_BSP_IpcSemaphoreTake(&g_core_start_semaphore);
 #endif

@@ -48,5 +48,6 @@ include(${CMAKE_CURRENT_LIST_DIR}/cmake/GeneratedCfg.cmake)
 
 include(${CMAKE_CURRENT_LIST_DIR}/cmake/GeneratedSrc.cmake)
 
+target_compile_options(${PROJECT_NAME}.elf PRIVATE -Wno-aggregate-return)
 target_link_options(${PROJECT_NAME}.elf PRIVATE -u _printf_float)
 target_link_libraries(${PROJECT_NAME}.elf PRIVATE m)
