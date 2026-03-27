@@ -1,8 +1,8 @@
-#ifndef _wifi_bt_h_
-#define _wifi_bt_h_
+#ifndef _d_wifi_bt_h_
+#define _d_wifi_bt_h_
 
-#include "infra/delay.h"
-#include "platform/uart.h"
+#include "service/s_delay.h"
+#include "d_uart.h"
 
 #include <stdint.h>
 
@@ -11,7 +11,7 @@
 /**
  * @brief WiFi/BT 模块实例 - 用户自定义名称，包含状态码和函数指针
  */
-#define wifi wifi_bt_instance
+#define wifi d_wifi_bt_instance
 
 /**
  * @brief WiFi/BT 模块状态码表，使用 X-Macro 定义，方便维护和扩展
@@ -172,7 +172,7 @@ extern const struct WifiBtInstance {
     WifiBtStatus(*reset)(WifiBtWorkMode mode);
     /**
      * @brief 进入透传模式
-     * @param socket_id 要进入透传模式的 socket 连接 ID，通常由 wifi_bt_connect 函数返回
+     * @param socket_id 要进入透传模式的 socket 连接 ID，通常由 d_wifi_bt_connect 函数返回
      * @return WifiBtStatus 枚举类型，表示操作结果
      */
     WifiBtStatus(*enter_transparent)(uint16_t socket_id);
@@ -210,25 +210,25 @@ extern const struct WifiBtInstance {
      * @return WifiBtStatus 枚举类型，表示操作结果
      */
     WifiBtStatus(*send)(WifiBtConnectInfo info, const char* data, uint16_t length);
-} wifi_bt_instance;
+} d_wifi_bt_instance;
 #undef X
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-WifiBtStatus wifi_bt_init(Uart_te uart, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len);
-WifiBtStatus wifi_bt_send_cmd(const char* cmd);
-WifiBtStatus wifi_bt_join_ap(const char* ssid, const char* password);
-WifiBtStatus wifi_bt_rejoin_ap(const char* ssid, const char* password);
-WifiBtStatus wifi_bt_check_ap(void);
-WifiBtStatus wifi_bt_connect(WifiBtConnectInfo* info);
-WifiBtStatus wifi_bt_disconnect(WifiBtConnectInfo* info);
-WifiBtStatus wifi_bt_reset(WifiBtWorkMode mode);
-WifiBtStatus wifi_bt_enter_transparent(uint16_t socket_id);
-void wifi_bt_exit_transparent(void);
+WifiBtStatus d_wifi_bt_init(Uart_te uart, WifiBtWorkMode mode, const uint8_t* const header, const uint8_t header_len);
+WifiBtStatus d_wifi_bt_send_cmd(const char* cmd);
+WifiBtStatus d_wifi_bt_join_ap(const char* ssid, const char* password);
+WifiBtStatus d_wifi_bt_rejoin_ap(const char* ssid, const char* password);
+WifiBtStatus d_wifi_bt_check_ap(void);
+WifiBtStatus d_wifi_bt_connect(WifiBtConnectInfo* info);
+WifiBtStatus d_wifi_bt_disconnect(WifiBtConnectInfo* info);
+WifiBtStatus d_wifi_bt_reset(WifiBtWorkMode mode);
+WifiBtStatus d_wifi_bt_enter_transparent(uint16_t socket_id);
+void d_wifi_bt_exit_transparent(void);
 
-WifiBtStatus wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms);
-WifiBtStatus wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len);
-WifiBtStatus wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, uint16_t length);
-WifiBtStatus wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t length);
+WifiBtStatus d_wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms);
+WifiBtStatus d_wifi_bt_process(uint8_t** const frame_buf, uint16_t* const frame_len);
+WifiBtStatus d_wifi_bt_send_frame(WifiBtConnectInfo info, const uint8_t* frame, uint16_t length);
+WifiBtStatus d_wifi_bt_send(WifiBtConnectInfo info, const char* data, uint16_t length);
 
 #endif

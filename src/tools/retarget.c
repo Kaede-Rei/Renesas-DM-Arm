@@ -1,6 +1,6 @@
 #include <sys/stat.h>
 #include "hal_data.h"
-#include "uart.h"
+#include "drive/d_uart.h"
 
 int _write(int file, char* ptr, int len);
 int _read(int file, char* ptr, int len);
@@ -18,7 +18,7 @@ int _write(int file, char* ptr, int len) {
     fsp_err_t err = g_uart7.p_api->write(g_uart7.p_ctrl, (const uint8_t*)ptr, (uint32_t)len);
     if(err != FSP_SUCCESS) return -1;
 
-    uart_wait_tx_complete(UART7);
+    d_uart_wait_tx_complete(UART7);
 
     return len;
 }
@@ -31,7 +31,7 @@ int _read(int file, char* ptr, int len) {
     fsp_err_t err = g_uart7.p_api->read(g_uart7.p_ctrl, (uint8_t*)ptr, (uint32_t)len);
     if(err != FSP_SUCCESS) return -1;
 
-    uart_wait_rx_complete(UART7);
+    d_uart_wait_rx_complete(UART7);
 
     _write(1, ptr, len);
 

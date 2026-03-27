@@ -1,8 +1,8 @@
-#include "motor.h"
-#include "platform/can.h"
+#include "d_dm_motor.h"
+#include "d_can.h"
 
-#include "platform/systick.h"
-#include "infra/delay.h"
+#include "d_systick.h"
+#include "service/s_delay.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -206,8 +206,8 @@ DmMotorStatus d_dm_get_feedback(uint16_t id, uint8_t feedback[8], uint32_t timeo
         return DM_MOTOR_ERROR;
     }
 
-    ms_t start = systick_get_ms();
-    while(!systick_is_timeout(start, timeout_ms)) {
+    ms_t start = d_systick_get_ms();
+    while(!d_systick_is_timeout(start, timeout_ms)) {
         if(dm_can_rcvd(feedback) == DM_MOTOR_OK) {
             uint8_t expected_id = (uint8_t)(can_id_l & 0x0F);
             uint8_t received_id = (uint8_t)(feedback[0] & 0x0F);
@@ -371,7 +371,7 @@ static DmMotorStatus dm_can_send(uint16_t id, uint8_t data[8]) {
 
     CanErrorCode_e can_result = can.write((can_instance_t* const)&g_canfd0, id, data, DM_MOTOR_CMD_LEN);
 
-    delay_ms(1);
+    s_delay_ms(1);
     return (can_result == CAN_SUCCESS) ? DM_MOTOR_OK : DM_MOTOR_ERROR;
 }
 
@@ -427,7 +427,7 @@ static void dm_write_register(uint16_t id, uint8_t rid, uint8_t d0, uint8_t d1, 
  */
 static void dm_switch_mode(uint16_t id, DmMotorMode mode) {
     dm_write_register(id, 10, (uint8_t)mode, 0, 0, 0);
-    delay_ms(1);
+    s_delay_ms(1);
 }
 
 /**

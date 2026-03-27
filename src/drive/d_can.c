@@ -1,8 +1,8 @@
-#include "can.h"
+#include "d_can.h"
 #include "hal_data.h"
 #include "r_can_api.h"
 
-#include "infra/delay.h"
+#include "service/s_delay.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -18,13 +18,13 @@
  * @param write 向 CAN 发送数据帧的函数指针
  * @param read 从 CAN 接收数据帧的函数指针
  */
-const struct CanInterface can_instance = {
-    .init = can_init,
-    .tx_complete = can_tx_complete,
-    .rx_complete = can_rx_complete,
-    .is_busy = can_is_busy,
-    .write = can_write,
-    .read = can_read
+const struct CanInterface d_can_instance = {
+    .init = d_can_init,
+    .tx_complete = d_can_tx_complete,
+    .rx_complete = d_can_rx_complete,
+    .is_busy = d_can_is_busy,
+    .write = d_can_write,
+    .read = d_can_read
 };
 
 // can rx 环形缓冲区容量
@@ -120,7 +120,7 @@ static uint16_t can_rx_ring_size(CanRxRing_t const* const ring);
  * @brief 初始化 CAN 模块
  * @return CanErrorCode_e 枚举类型，表示操作结果
  */
-CanErrorCode_e can_init(void) {
+CanErrorCode_e d_can_init(void) {
     // 初始化 CAN 接收环形缓冲区
     can_rx_ring_init(&canfd0_cb.rx_ring);
 
@@ -148,11 +148,11 @@ CanErrorCode_e can_init(void) {
  * @brief 检查 CAN 发送是否完成
  * @return CanErrorCode_e 枚举类型，表示操作结果
  */
-CanErrorCode_e can_tx_complete(void) {
+CanErrorCode_e d_can_tx_complete(void) {
     uint8_t time_out = 100;
     while(!canfd0_cb.tx_complete && time_out > 0) {
         time_out--;
-        delay_ms(1);
+        s_delay_ms(1);
     }
     CanErrorCode_e result = canfd0_cb.tx_complete ? CAN_SUCCESS : CAN_NOT_COMPLETE;
     canfd0_cb.tx_complete = false;
@@ -164,7 +164,7 @@ CanErrorCode_e can_tx_complete(void) {
  * @brief 检查 CAN 接收是否完成
  * @return CanErrorCode_e 枚举类型，表示操作结果
  */
-CanErrorCode_e can_rx_complete(void) {
+CanErrorCode_e d_can_rx_complete(void) {
     if(can_rx_ring_size(&canfd0_cb.rx_ring) > 0) {
         return CAN_SUCCESS;
     }
@@ -172,7 +172,7 @@ CanErrorCode_e can_rx_complete(void) {
     uint8_t time_out = 100;
     while(!canfd0_cb.rx_complete && time_out > 0) {
         time_out--;
-        delay_ms(1);
+        s_delay_ms(1);
     }
     CanErrorCode_e result = (canfd0_cb.rx_complete || (can_rx_ring_size(&canfd0_cb.rx_ring) > 0)) ? CAN_SUCCESS : CAN_NOT_COMPLETE;
     canfd0_cb.rx_complete = false;
@@ -184,18 +184,18 @@ CanErrorCode_e can_rx_complete(void) {
  * @brief 检查 CAN 是否忙碌
  * @return CanErrorCode_e 枚举类型，表示操作结果
  */
-CanErrorCode_e can_is_busy(void) {
+CanErrorCode_e d_can_is_busy(void) {
     return canfd0_cb.is_busy ? CAN_BUSY : CAN_SUCCESS;
 }
 
 /**
  * @brief 向 CAN 发送数据帧
- * @param p_can 指向 CAN 实例的指针
+ * @param can_instance 指向 CAN 实例的指针
  * @param frame 指向要发送的 CAN 帧的指针
  * @note 此函数使用 CAN 而非 CANFD
  */
-CanErrorCode_e can_write(can_instance_t* const p_can, uint32_t id, uint8_t* data, uint8_t length) {
-    if(p_can == NULL || data == NULL) {
+CanErrorCode_e d_can_write(can_instance_t* const can_instance, uint32_t id, uint8_t* data, uint8_t length) {
+    if(can_instance == NULL || data == NULL) {
         return CAN_ERROR;
     }
 
@@ -221,29 +221,29 @@ CanErrorCode_e can_write(can_instance_t* const p_can, uint32_t id, uint8_t* data
         return CAN_ERROR;
     }
 
-    CanErrorCode_e result = can_tx_complete();
+    CanErrorCode_e result = d_can_tx_complete();
     canfd0_cb.is_busy = false;
     return (err == FSP_SUCCESS && result == CAN_SUCCESS) ? CAN_SUCCESS : CAN_ERROR;
 }
 
 /**
  * @brief 从 CAN 接收数据帧
- * @param p_can 指向 CAN 实例的指针
+ * @param can_instance 指向 CAN 实例的指针
  * @param frame 指向存储接收数据的 CAN 帧结构体的指针
  * @return CanErrorCode_e 枚举类型，表示操作结果
  * @note 此函数使用 CAN 而非 CANFD
  */
-CanErrorCode_e can_read(can_instance_t* const p_can, can_frame_t* const frame) {
-    if(frame == NULL || p_can == NULL) {
+CanErrorCode_e d_can_read(can_instance_t* const can_instance, can_frame_t* const frame) {
+    if(frame == NULL || can_instance == NULL) {
         return CAN_ERROR;
     }
 
-    if(can_rx_complete() != CAN_SUCCESS) {
+    if(d_can_rx_complete() != CAN_SUCCESS) {
         return CAN_NOT_COMPLETE;
     }
 
     CanErrorCode_e result;
-    if(p_can == &g_canfd0) {
+    if(can_instance == &g_canfd0) {
         result = can_rx_ring_read(&canfd0_cb.rx_ring, frame);
         if(result == CAN_SUCCESS) canfd0_cb.rx_overflow = false;
     }

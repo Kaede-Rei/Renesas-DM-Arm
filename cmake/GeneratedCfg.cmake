@@ -3,7 +3,7 @@
 
 set(RASC_TARGET_DEVICE R7FA6M5BF)
 set(RASC_TARGET_ARCH cortex-m33)
-set(RASC_PROJECT_NAME code)
+set(RASC_PROJECT_NAME code_old)
 SET(RASC_TOOLCHAIN_NAME GCC)
 
 SET(RASC_CMAKE_ASM_FLAGS "-mfloat-abi=hard;-mcpu=cortex-m33;-mfpu=fpv5-sp-d16;-Wunused;-Wuninitialized;-Wall;-Wextra;-Wmissing-declarations;-Wconversion;-Wpointer-arith;-Wshadow;-Wlogical-op;-Waggregate-return;-Wfloat-equal;-fmessage-length=0;-fsigned-char;-ffunction-sections;-fdata-sections;-mthumb;-x;assembler-with-cpp;-MMD;-MP")

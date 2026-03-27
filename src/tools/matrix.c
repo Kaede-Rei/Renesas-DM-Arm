@@ -71,14 +71,6 @@ MatrixErrorCode matrix_get(const Matrix* const m, unsigned int r, unsigned int c
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 设置矩阵中指定位置的元素值
- * @param m 输入的矩阵结构体
- * @param r 行索引，范围 0 到 m->row - 1
- * @param c 列索引，范围 0 到 m->col - 1
- * @param value 要设置的元素值
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_set(Matrix* const m, unsigned int r, unsigned int c, float value) {
     if(m == NULL || m->pdata == NULL || r >= m->row || c >= m->col) return MATRIX_INVALID;
 
@@ -87,12 +79,6 @@ MatrixErrorCode matrix_set(Matrix* const m, unsigned int r, unsigned int c, floa
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 复制一个矩阵
- * @param m 输入的矩阵结构体
- * @param out 输出的矩阵结构体，必须与输入矩阵具有相同的行列数
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_copy(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -106,13 +92,6 @@ MatrixErrorCode matrix_copy(const Matrix* const m, Matrix* const out) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 矩阵加法
- * @param A 输入矩阵 A
- * @param B 输入矩阵 B，必须与 A 具有相同的行列数
- * @param out 输出矩阵，必须与 A 和 B 具有相同的行列数
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_add(const Matrix* const A, const Matrix* const B, Matrix* const out) {
     if(A == NULL || A->pdata == NULL || B == NULL || B->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(A->row != B->row || A->col != B->col || A->row != out->row || A->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -126,13 +105,6 @@ MatrixErrorCode matrix_add(const Matrix* const A, const Matrix* const B, Matrix*
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 矩阵减法
- * @param A 输入矩阵 A
- * @param B 输入矩阵 B，必须与 A 具有相同的行列数
- * @param out 输出矩阵，必须与 A 和 B 具有相同的行列数
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_sub(const Matrix* const A, const Matrix* const B, Matrix* const out) {
     if(A == NULL || A->pdata == NULL || B == NULL || B->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(A->row != B->row || A->col != B->col || A->row != out->row || A->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -146,13 +118,6 @@ MatrixErrorCode matrix_sub(const Matrix* const A, const Matrix* const B, Matrix*
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 矩阵数乘
- * @param m 输入矩阵
- * @param scalar 乘数
- * @param out 输出矩阵，必须与输入矩阵具有相同的行列数
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_scalar_mul(const Matrix* const m, float scalar, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -166,13 +131,6 @@ MatrixErrorCode matrix_scalar_mul(const Matrix* const m, float scalar, Matrix* c
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 矩阵乘法
- * @param A 输入矩阵 A，尺寸为 m x n
- * @param B 输入矩阵 B，尺寸为 n x p
- * @param out 输出矩阵，尺寸必须为 m x p
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_mul(const Matrix* const A, const Matrix* const B, Matrix* const out) {
     if(A == NULL || A->pdata == NULL || B == NULL || B->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(A->col != B->row || A->row != out->row || B->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -191,12 +149,6 @@ MatrixErrorCode matrix_mul(const Matrix* const A, const Matrix* const B, Matrix*
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 矩阵转置
- * @param m 输入矩阵
- * @param out 输出矩阵，行列数与输入矩阵相反
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_transpose(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != out->col || m->col != out->row) return MATRIX_CANNOT_COMPUTE;
@@ -211,12 +163,6 @@ MatrixErrorCode matrix_transpose(const Matrix* const m, Matrix* const out) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 将矩阵转换为上三角矩阵
- * @param m 输入矩阵，必须为方阵
- * @param out 输出矩阵，必须与输入矩阵具有相同的行列数
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_to_upper_triangular(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != m->col || m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -261,12 +207,6 @@ MatrixErrorCode matrix_to_upper_triangular(const Matrix* const m, Matrix* const 
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 将矩阵转换为下三角矩阵
- * @param m 输入矩阵，必须为方阵
- * @param out 输出矩阵，必须与输入矩阵具有相同的行列数
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_to_lower_triangular(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != m->col || m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -311,12 +251,6 @@ MatrixErrorCode matrix_to_lower_triangular(const Matrix* const m, Matrix* const 
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 计算矩阵的行列式
- * @param m 输入矩阵，必须为方阵
- * @param out 输出的行列式值指针
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_determinant(const Matrix* const m, float* out) {
     if(m == NULL || m->pdata == NULL || out == NULL)
         return MATRIX_INVALID;
@@ -381,12 +315,6 @@ MatrixErrorCode matrix_determinant(const Matrix* const m, float* out) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 计算矩阵的逆
- * @param m 输入矩阵，必须为方阵
- * @param out 输出矩阵，必须与输入矩阵具有相同的行列数
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_inverse(const Matrix* const m, Matrix* const out) {
     if(m == NULL || m->pdata == NULL || out == NULL || out->pdata == NULL) return MATRIX_INVALID;
     if(m->row != m->col || m->row != out->row || m->col != out->col) return MATRIX_CANNOT_COMPUTE;
@@ -451,12 +379,6 @@ MatrixErrorCode matrix_inverse(const Matrix* const m, Matrix* const out) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 归一化四元数
- * @param quat 输入的四元数，长度必须为 4
- * @param out 输出的归一化四元数，长度必须为 4
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode quat_normalize(const float quat[4], float out[4]) {
     if(quat == NULL || out == NULL) return MATRIX_INVALID;
 
@@ -471,12 +393,6 @@ MatrixErrorCode quat_normalize(const float quat[4], float out[4]) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 将旋转矩阵转换为四元数
- * @param R 输入的旋转矩阵，必须为 3x3 矩阵
- * @param quat 输出的四元数，长度必须为 4，格式为 [w, x, y, z]
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode matrix_to_quat(const Matrix* const R, float quat[4]) {
     if(R == NULL || R->pdata == NULL || quat == NULL) return MATRIX_INVALID;
     if(R->row != 3 || R->col != 3) return MATRIX_CANNOT_COMPUTE;
@@ -523,12 +439,6 @@ MatrixErrorCode matrix_to_quat(const Matrix* const R, float quat[4]) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 将四元数转换为旋转矩阵
- * @param quat 输入的四元数，长度必须为 4，格式为 [w, x, y, z]
- * @param R 输出的旋转矩阵，必须为 3x3 矩阵
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode quat_to_matrix(const float quat[4], Matrix* const R) {
     if(quat == NULL || R == NULL || R->pdata == NULL) return MATRIX_INVALID;
     if(R->row != 3 || R->col != 3) return MATRIX_CANNOT_COMPUTE;
@@ -553,13 +463,6 @@ MatrixErrorCode quat_to_matrix(const float quat[4], Matrix* const R) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 3D 向量加法
- * @param a 输入向量 a
- * @param b 输入向量 b
- * @param out 输出向量，必须与输入向量具有相同的维度
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode vec3_add(const Vector3* const a, const Vector3* const b, Vector3* out) {
     if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
 
@@ -570,13 +473,6 @@ MatrixErrorCode vec3_add(const Vector3* const a, const Vector3* const b, Vector3
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 3D 向量减法
- * @param a 输入向量 a
- * @param b 输入向量 b
- * @param out 输出向量，必须与输入向量具有相同的维度
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode vec3_sub(const Vector3* const a, const Vector3* const b, Vector3* out) {
     if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
 
@@ -587,13 +483,6 @@ MatrixErrorCode vec3_sub(const Vector3* const a, const Vector3* const b, Vector3
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 3D 向量数乘
- * @param v 输入向量
- * @param scalar 乘数
- * @param out 输出向量，必须与输入向量具有相同的维度
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode vec3_scalar_mul(const Vector3* const v, float scalar, Vector3* out) {
     if(v == NULL || out == NULL) return MATRIX_INVALID;
 
@@ -604,12 +493,6 @@ MatrixErrorCode vec3_scalar_mul(const Vector3* const v, float scalar, Vector3* o
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 计算 3D 向量的范数
- * @param v 输入向量
- * @param out 输出的范数值指针
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode vec3_norm(const Vector3* const v, float* out) {
     if(v == NULL || out == NULL) return MATRIX_INVALID;
 
@@ -618,12 +501,6 @@ MatrixErrorCode vec3_norm(const Vector3* const v, float* out) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 归一化 3D 向量
- * @param v 输入向量
- * @param out 输出的归一化向量，必须与输入向量具有相同的维度
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode vec3_normalize(const Vector3* const v, Vector3* out) {
     if(v == NULL || out == NULL) return MATRIX_INVALID;
 
@@ -639,13 +516,6 @@ MatrixErrorCode vec3_normalize(const Vector3* const v, Vector3* out) {
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 计算 3D 向量的点积
- * @param a 输入向量 a
- * @param b 输入向量 b
- * @param out 输出的点积值指针
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode vec3_dot(const Vector3* const a, const Vector3* const b, float* out) {
     if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
 
@@ -654,13 +524,6 @@ MatrixErrorCode vec3_dot(const Vector3* const a, const Vector3* const b, float* 
     return MATRIX_SUCCESS;
 }
 
-/**
- * @brief 计算 3D 向量的叉积
- * @param a 输入向量 a
- * @param b 输入向量 b
- * @param out 输出的叉积向量，必须与输入向量具有相同的维度
- * @return MatrixErrorCode 错误码
- */
 MatrixErrorCode vec3_cross(const Vector3* const a, const Vector3* const b, Vector3* out) {
     if(a == NULL || b == NULL || out == NULL) return MATRIX_INVALID;
 

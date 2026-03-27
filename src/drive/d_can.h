@@ -1,14 +1,15 @@
-#ifndef _can_h_
-#define _can_h_
+#ifndef _d_can_h_
+#define _d_can_h_
 
 #include "hal_data.h"   // IWYU pragma: keep
+#include "r_can_api.h"
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
  * @brief CAN 单例用户自定义名称
  */
-#define can can_instance
+#define can d_can_instance
 
 /**
  * @brief can0 写入数据的宏定义，简化函数调用
@@ -16,12 +17,12 @@
  * @param data 要发送的数据
  * @param length 要发送的数据长度
  */
-#define can0_write(id, data, length) can_write(&g_canfd0, id, data, length)
+#define d_can0_write(id, data, length) d_can_write(&g_canfd0, id, data, length)
 /**
  * @brief can0 读取数据的宏定义，简化函数调用
  * @param frame 指向存储接收数据的 CAN 帧结构体的指针
  */
-#define can0_read(frame) can_read(&g_canfd0, frame)
+#define d_can0_read(frame) d_can_read(&g_canfd0, frame)
 
 /**
  * @brief 官方要求用户必须定义一个全局的 CANFD 接收过滤器数组
@@ -91,15 +92,15 @@ extern const struct CanInterface {
      * @note 此函数使用 CAN 而非 CANFD
      */
     CanErrorCode_e(*read)(can_instance_t* const can_instance, can_frame_t* const frame);
-} can_instance;
+} d_can_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-CanErrorCode_e can_init(void);
-CanErrorCode_e can_tx_complete(void);
-CanErrorCode_e can_rx_complete(void);
-CanErrorCode_e can_is_busy(void);
-CanErrorCode_e can_write(can_instance_t* const can_instance, uint32_t id, uint8_t* data, uint8_t length);
-CanErrorCode_e can_read(can_instance_t* const can_instance, can_frame_t* const frame);
+CanErrorCode_e d_can_init(void);
+CanErrorCode_e d_can_tx_complete(void);
+CanErrorCode_e d_can_rx_complete(void);
+CanErrorCode_e d_can_is_busy(void);
+CanErrorCode_e d_can_write(can_instance_t* const can_instance, uint32_t id, uint8_t* data, uint8_t length);
+CanErrorCode_e d_can_read(can_instance_t* const can_instance, can_frame_t* const frame);
 
 #endif

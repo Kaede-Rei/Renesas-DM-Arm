@@ -1,13 +1,13 @@
 
-#ifndef _led_h_
-#define _led_h_
+#ifndef _d_led_h_
+#define _d_led_h_
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
 /**
  * @brief LED 单例用户自定义名称
  */
-#define led led_instance
+#define led d_led_instance
 
 /**
  * @brief LED 错误代码枚举类型
@@ -43,12 +43,12 @@ extern const struct LedInterface {
      * @return LedErrorCode_e 枚举类型，表示操作结果
      */
     LedErrorCode_e(*toggle)(void);
-} led_instance;
+} d_led_instance;
 
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
-LedErrorCode_e led_on(void);
-LedErrorCode_e led_off(void);
-LedErrorCode_e led_toggle(void);
+LedErrorCode_e d_led_on(void);
+LedErrorCode_e d_led_off(void);
+LedErrorCode_e d_led_toggle(void);
 
 #endif

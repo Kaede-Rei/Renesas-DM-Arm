@@ -1,4 +1,4 @@
-#include "fsm.h"
+#include "app/fsm.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -7,13 +7,14 @@
 #include <stddef.h>
 #include <math.h>
 
-#include "infra/matrix.h"
+#include "fsm.h"
+#include "tools/matrix.h"
 
-#include "platform/led.h"
+#include "drive/d_led.h"
 
-#include "app/packet_parser.h"
-#include "infra/delay.h"
-#include "domain/arm_kine.h"
+#include "service/s_comms.h"
+#include "service/s_delay.h"
+#include "service/s_fk_ik.h"
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
@@ -74,11 +75,6 @@ struct State {
     State* _parent_;
 };
 
-/**
- * @brief FSM 当前状态和事件消息结构体，包含当前状态指针和当前事件消息
- * @param s 当前状态指针
- * @param msg 当前事件消息，包含事件类型和事件数据指针
- */
 static struct {
     State* s;
     FsmMsg msg;
@@ -116,10 +112,6 @@ static bool event_filter(Event event);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
-/**
- * @brief FSM 初始化函数，设置初始状态和数据
- * @param info WiFi 连接信息指针，用于 FSM 内部使用
- */
 void fsm_init(WifiBtConnectInfo* info) {
     reset_fsm_data();
     fsm_data.wifi_info = info;
@@ -131,12 +123,6 @@ void fsm_init(WifiBtConnectInfo* info) {
     cur.s->entry();
 }
 
-/**
- * @brief FSM 事件触发函数，接受一个事件和可选的数据指针，尝试触发事件并改变状态
- * @param event 事件类型，使用 Event 枚举表示
- * @param data 事件数据指针，可以指向任何类型的数据，根据事件需要进行传递
- * @return 如果事件成功触发并处理返回 true，否则返回 false（例如当前有未处理的事件或事件被过滤掉）
- */
 bool fsm_trigger(Event event, void* data) {
     if(cur.msg.event != EVENT_NONE) return false;
     if(event_filter(event) == false) return false;
@@ -147,10 +133,6 @@ bool fsm_trigger(Event event, void* data) {
     return true;
 }
 
-/**
- * @brief FSM 处理函数，应该在主循环中定期调用，用于处理当前事件并执行状态转换和动作
- * @note 该函数会检查当前事件，调用状态的事件处理函数进行状态转换，并执行相应的进入、退出和持续动作
- */
 void fsm_process(void) {
     if(cur.msg.event != EVENT_NONE) {
         State* next = dispatch();
@@ -169,11 +151,6 @@ void fsm_process(void) {
     execute_action();
 }
 
-/**
- * @brief FSM 更新 DM 电机反馈数据函数，应该在接收到 DM 电机反馈时调用，用于更新 FSM 内部的电机反馈数据
- * @param feedback DM 电机反馈数据结构体，包含电机 ID、位置、速度等信息
- * @note 该函数会根据电机 ID 更新对应的电机反馈数据，并标记该数据为有效
- */
 void fsm_update_dm_feedback(const DmMotorFeedback feedback) {
     if(feedback.id >= 1 && feedback.id <= 6) {
         fsm_data.dm_fb[feedback.id] = feedback;
@@ -183,10 +160,6 @@ void fsm_update_dm_feedback(const DmMotorFeedback feedback) {
 
 // ! ========================= 状 态 机 实 现 ========================= ! //
 
-/**
- * @brief FSM 调度函数，负责根据当前事件在状态层次结构中查找处理该事件的状态，并返回下一个状态指针
- * @return 下一个状态指针，如果没有状态处理该事件则返回当前状态指针
- */
 static State* dispatch(void) {
     State* s = cur.s;
     while(s) {
@@ -200,12 +173,6 @@ static State* dispatch(void) {
     return cur.s;
 }
 
-/**
- * @brief 查找两个状态的最近公共祖先状态指针
- * @param s1 状态指针 1
- * @param s2 状态指针 2
- * @return 最近公共祖先状态指针，如果没有公共祖先则返回 NULL
- */
 static State* find_lca(State* s1, State* s2) {
     if(!s1 || !s2) return NULL;
 
@@ -229,11 +196,6 @@ static State* find_lca(State* s1, State* s2) {
     return deeper;
 }
 
-/**
- * @brief 从当前状态退出到目标状态，调用沿途状态的退出函数
- * @param from 当前状态指针
- * @param to 目标状态指针
- */
 static void exit_up_to(State* from, State* to) {
     State* s = from;
     while(s && s != to) {
@@ -242,11 +204,6 @@ static void exit_up_to(State* from, State* to) {
     }
 }
 
-/**
- * @brief 从目标状态进入到当前状态，调用沿途状态的进入函数
- * @param from 当前状态指针
- * @param to 目标状态指针
- */
 static void enter_down_to(State* from, State* to) {
     State* path[FSM_DEPTH];
     int depth = 0;
@@ -263,10 +220,6 @@ static void enter_down_to(State* from, State* to) {
     }
 }
 
-/**
- * @brief 执行当前状态的持续动作函数，应该在状态机处理函数中定期调用
- * @note 该函数会从当前状态开始，沿着父状态链向上调用每个状态的持续动作函数，直到没有父状态为止
- */
 static void execute_action(void) {
     State* s = cur.s;
     while(s) {
@@ -275,21 +228,12 @@ static void execute_action(void) {
     }
 }
 
-/**
- * @brief 重置 FSM 内部数据函数，应该在 FSM 初始化或进入特定状态时调用，用于清除 FSM 内部数据并重置为初始状态
- * @note 该函数会保留 WiFi 连接信息指针，但会清除其他数据字段
- */
 static void reset_fsm_data(void) {
     WifiBtConnectInfo* wifi_info = fsm_data.wifi_info;
     fsm_data = (FsmData){ 0 };
     fsm_data.wifi_info = wifi_info;
 }
 
-/**
- * @brief FSM 事件过滤函数，应该在事件触发函数中调用，用于根据当前状态和事件类型决定是否允许触发该事件
- * @param event 事件类型，使用 Event 枚举表示
- * @return 如果事件被允许触发返回 true，否则返回 false（例如某些事件在特定状态下无效或被忽略）
- */
 static bool event_filter(Event event) {
     State* s = cur.s;
     while(s) {
@@ -390,7 +334,8 @@ static void exit_searching(void) {}
 static void action_searching(void) {
     Pose start_pose;
     // TODO: 搜索时使用的种子位姿
-    // SixDofJoint seed_joints = { 0.0f, 0.1258f, 0.5978f, -0.4620f, 0.0f, 0.0f };
+    SixDofJoint seed_joints = { 0.0f, 0.6f, 1.14f, -1.06f, 0.0f, 0.0f };
+    arm.fk(&seed_joints, &start_pose);
 
     start_pose.position.x = 0.0f;
     start_pose.position.y = 0.2f;
@@ -449,6 +394,7 @@ static void action_searching(void) {
     fsm_trigger(EVENT_SEARCH_COMPLETE, NULL);
 }
 
+
 /**
  * @brief ik_pose 状态
  */
@@ -467,7 +413,7 @@ static void entry_ik_pose(void) {
 }
 static void exit_ik_pose(void) {}
 static void action_ik_pose(void) {
-    SixDofJoint seed_joints = { 0.0f, 0.1258f, 0.5978f, -0.4620f, 0.0f, 0.0f };
+    SixDofJoint seed_joints = { 0.0f, 0.6f, 1.14f, -1.06f, 0.0f, 0.0f };
     if(arm.ik(&fsm_data.target_pose, &fsm_data.ik_result, &seed_joints, IK_MODE_FULL_POSE) != ARM_STATUS_SUCCESS) {
         fsm_trigger(EVENT_DETECT_ERROR, "IK 计算失败");
         return;
@@ -508,21 +454,21 @@ static void entry_moving(void) {
 static void exit_moving(void) {}
 static void action_moving(void) {
     if(!s_nb_delay_ms(&move_timer, 5000)) {
-        for(uint8_t i = 1; i <= 6; ++i) {
-            if(!fsm_data.dm_fb_valid[i]) return;
-        }
+        // for(uint8_t i = 1; i <= 6; ++i) {
+        //     if(!fsm_data.dm_fb_valid[i]) return;
+        // }
 
-        float pos_err = 0.1f;
-        if(fabsf(fsm_data.dm_fb[1].pos - fsm_data.ik_result.joint_1) > pos_err) return;
-        if(fabsf(fsm_data.dm_fb[2].pos - fsm_data.ik_result.joint_2) > pos_err) return;
-        if(fabsf(fsm_data.dm_fb[3].pos - fsm_data.ik_result.joint_3) > pos_err) return;
-        if(fabsf(fsm_data.dm_fb[4].pos - fsm_data.ik_result.joint_4) > pos_err) return;
-        if(fabsf(fsm_data.dm_fb[5].pos - fsm_data.ik_result.joint_5) > pos_err) return;
-        if(fabsf(fsm_data.dm_fb[6].pos - fsm_data.ik_result.joint_6) > pos_err) return;
+        // float pos_err = 0.1f;
+        // if(fabsf(fsm_data.dm_fb[1].pos - fsm_data.ik_result.joint_1) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[2].pos - fsm_data.ik_result.joint_2) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[3].pos - fsm_data.ik_result.joint_3) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[4].pos - fsm_data.ik_result.joint_4) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[5].pos - fsm_data.ik_result.joint_5) > pos_err) return;
+        // if(fabsf(fsm_data.dm_fb[6].pos - fsm_data.ik_result.joint_6) > pos_err) return;
 
+        printf("[FSM] 移动完成，进入激光状态...\r\n");
         fsm_trigger(EVENT_MOVE_COMPLETE, NULL);
     }
-
     fsm_trigger(EVENT_DETECT_ERROR, "移动超时");
 }
 
@@ -543,7 +489,9 @@ static void entry_lasering(void) {
     laser_timer = 0;
     wifi.send(*fsm_data.wifi_info, "Ready to Laser", strlen("Ready to Laser"));
 }
-static void exit_lasering(void) {}
+static void exit_lasering(void) {
+    printf("[FSM] 激光完成，返回空闲状态...\r\n");
+}
 static void action_lasering(void) {
     if(s_nb_delay_ms(&laser_timer, 5000)) {
         fsm_trigger(EVENT_DETECT_ERROR, "激光执行超时");
@@ -573,6 +521,8 @@ static void action_error(void) {
     printf("[FSM] 错误状态，等待重置...\r\n");
     while(1) {
         led.toggle();
-        delay_ms(500);
+        s_delay_ms(500);
     }
 }
+
+

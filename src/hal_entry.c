@@ -1,29 +1,31 @@
 #include "hal_data.h"
 
-/// @brief 标准库
+// 工具库
+// #include "tools/simple_api.h"
+#include "tools/protocol_parser.h"
+
+// 标准库
+#include <stdint.h>
 #include <stdio.h>
+#include <sys/_types.h>
 
-/// @brief 应用层
-#include "app/packet_parser.h"
+// 驱动层
+#include "drive/d_led.h"
+#include "drive/d_uart.h"
+#include "drive/d_can.h"
+#include "drive/d_dm_motor.h"
+#include "drive/d_systick.h"
+#include "drive/d_wifi_bt.h"
 
-/// @brief 设备层
-#include "device/motor.h"
-#include "device/wifi_bt.h"
+// 服务层
+#include "service/s_delay.h"
+#include "service/s_fk_ik.h"
+#include "service/s_comms.h"
 
-/// @brief 领域层（机器人）
-#include "domain/arm_kine.h"
+// 应用层
+#include "app/fsm.h"
 
-/// @brief 基础设施层
-#include "infra/delay.h"
-#include "infra/fsm.h"
-// #include "infra/matrix.h"
-#include "infra/protocol_parser.h"
 
-/// @brief 平台层
-#include "platform/can.h"
-#include "platform/led.h"
-#include "platform/systick.h"
-#include "platform/uart.h"
 
 // 测试函数
 void arm_test(WifiBtConnectInfo* info);
@@ -41,7 +43,7 @@ bsp_ipc_semaphore_handle_t g_core_start_semaphore =
  */
 static void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     if(systick.init() != FSP_SUCCESS) while(1);
-    delay_ms_init(systick.get_ms);
+    s_delay_ms_init(systick.get_ms);
 
     uart.init(UART7, uart7_rx_buf);
     wifi.init(UART6, STA, (const uint8_t*)"RENE:", 5);
@@ -54,7 +56,7 @@ static void sys_init(RingBuf* uart7_rx_buf, WifiBtConnectInfo* info) {
     dm.enable(0x05);
     dm.enable(0x06);
 
-    delay_ms(2000);
+    s_delay_ms(3000);
     led.on();
     printf("System Init Complete!\r\n");
 
@@ -125,7 +127,7 @@ void hal_entry(void) {
             if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
                 comms.process(frame_buf, frame_len);
                 comms.get_weed(&weed_data);
-                if(weed_data.confidence > 0.8) {
+                if(weed_data.confidence > 0.0f) {
                     if(!fsm_trigger(EVENT_START_SEARCH, &weed_data)) {
                         printf("[FSM] 无法触发事件：%d\r\n", EVENT_START_SEARCH);
                     }
@@ -142,7 +144,7 @@ void hal_entry(void) {
             fsm_update_dm_feedback(feedback);
             ++feedback_fps;
         }
-        if(s_nb_delay_ms(&dm_update_task, 20)) {
+        if(s_nb_delay_ms(&dm_update_task, 50)) {
             dm.request_feedback(0x01);
             dm.request_feedback(0x02);
             dm.request_feedback(0x03);

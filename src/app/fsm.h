@@ -3,12 +3,11 @@
 
 #include <stdbool.h>
 
-#include "device/wifi_bt.h"
-#include "device/motor.h"
+#include "drive/d_wifi_bt.h"
+#include "drive/d_dm_motor.h"
 
 // ! ========================= 接 口 变 量 / Typedef 声 明 ========================= ! //
 
-/// @brief FSM 深度
 #define FSM_DEPTH 3
 
 /**
