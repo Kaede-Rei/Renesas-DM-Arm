@@ -7,6 +7,23 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
+/**
+ * @brief 全局 HFSM 实例，提供接口函数和资源函数的访问
+ * @param init 初始化状态机实例
+ * @param post 向状态机实例发送事件
+ * @param clear 清除状态机实例的待处理事件
+ * @param process 处理状态机实例的待处理事件
+ * @param state 获取状态机实例的当前状态
+ * @param context 获取状态机实例的上下文指针
+ * @param const_context 获取状态机实例的上下文指针（只读）
+ * @param is_descendant_of 判断一个状态是否是另一个状态的子状态
+ * @param transition 从当前状态转换到目标状态
+ * @param has_pending 判断状态机实例是否有待处理事件
+ * @param res 资源函数结构体，包含 ignore、handled 和 transition 三个函数
+ *      - ignore 返回一个表示事件被忽略的结果
+ *      - handled 返回一个表示事件已处理但不进行状态转换的结果
+ *      - transition 返回一个表示事件已处理并进行状态转换的结果，next_state 字段指向目标状态
+ */
 #define RX(name) .name = HFSM_RES_##name,
 const struct HfsmInstance hfsm_instance = {
     .init = hfsm_init,
@@ -39,6 +56,12 @@ static void execute_action(HfsmMachine* m);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 初始化状态机实例
+ * @param m 状态机实例指针
+ * @param initial_state 初始状态指针
+ * @param context 用户自定义上下文指针
+ */
 void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context) {
     if(m == NULL) return;
 
@@ -53,6 +76,13 @@ void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context) {
     enter_down_to(NULL, initial_state, m);
 }
 
+/**
+ * @brief 向状态机实例发送事件
+ * @param m 状态机实例指针
+ * @param event_id 事件ID
+ * @param data 事件数据指针
+ * @return true 表示事件发送成功，false 表示失败
+ */
 bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, void* data) {
     if(m == NULL || event_id == HFSM_EVENT_NONE) return false;
     if(m->pending_event.id != HFSM_EVENT_NONE) return false;
@@ -63,6 +93,11 @@ bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, void* data) {
     return true;
 }
 
+/**
+ * @brief 获取状态机实例的当前状态
+ * @param m 状态机实例指针
+ * @return 当前状态指针，若 m 为 NULL 则返回 NULL
+ */
 void hfsm_clear(HfsmMachine* m) {
     if(m == NULL) return;
 
@@ -70,6 +105,10 @@ void hfsm_clear(HfsmMachine* m) {
     m->pending_event.data = NULL;
 }
 
+/**
+ * @brief 处理状态机实例的待处理事件
+ * @param m 状态机实例指针
+ */
 void hfsm_process(HfsmMachine* m) {
     if(m == NULL || m->current_state == NULL) return;
 
@@ -96,24 +135,45 @@ void hfsm_process(HfsmMachine* m) {
 #endif
 }
 
+/**
+ * @brief 获取状态机实例的当前状态
+ * @param m 状态机实例指针
+ * @return 当前状态指针，若 m 为 NULL 则返回 NULL
+ */
 const HfsmState* hfsm_get_current_state(const HfsmMachine* m) {
     if(m == NULL) return NULL;
 
     return m->current_state;
 }
 
+/**
+ * @brief 获取状态机实例的上下文指针
+ * @param m 状态机实例指针
+ * @return 上下文指针，若 m 为 NULL 则返回 NULL
+ */
 void* hfsm_get_context(HfsmMachine* m) {
     if(m == NULL) return NULL;
 
     return m->context;
 }
 
+/**
+ * @brief 获取状态机实例的上下文指针（只读）
+ * @param m 状态机实例指针
+ * @return 上下文指针，若 m 为 NULL 则返回 NULL
+ */
 const void* hfsm_get_const_context(const HfsmMachine* m) {
     if(m == NULL) return NULL;
 
     return m->context;
 }
 
+/**
+ * @brief 判断一个状态是否是另一个状态的子状态
+ * @param state 待判断状态指针
+ * @param ancestor 祖先状态指针
+ * @return 若 state 是 ancestor 的子状态返回 true，否则返回 false
+ */
 bool hfsm_is_descendant_of(const HfsmState* state, const HfsmState* ancestor) {
     if(state == NULL || ancestor == NULL) return false;
 
@@ -126,6 +186,12 @@ bool hfsm_is_descendant_of(const HfsmState* state, const HfsmState* ancestor) {
     return false;
 }
 
+/**
+ * @brief 从当前状态转换到目标状态
+ * @param m 状态机实例指针
+ * @param target_state 目标状态指针
+ * @return 转换成功返回 true，失败返回 false
+ */
 bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state) {
     if(m == NULL || m->current_state == NULL || target_state == NULL) return false;
 
@@ -142,31 +208,50 @@ bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state) {
     return true;
 }
 
+/**
+ * @brief 判断状态机实例是否有待处理事件
+ * @param m 状态机实例指针
+ * @return true 表示有待处理事件，false 表示没有
+ */
 bool hfsm_has_pending_event(const HfsmMachine* m) {
     if(m == NULL) return false;
 
     return m->pending_event.id != HFSM_EVENT_NONE;
 }
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Waggregate-return"
-
+/**
+ * @brief 返回一个表示事件被忽略的结果
+ * @return HfsmResult 结果类型为 IGNORE，next_state 字段为 NULL
+ */
 HfsmResult hfsm_res_ignore(void) {
     return (HfsmResult) { .type = hfsm.res.IGNORE, .next_state = NULL };
 }
 
+/**
+ * @brief 返回一个表示事件已处理但不进行状态转换的结果
+ * @return HfsmResult 结果类型为 HANDLED，next_state 字段为 NULL
+ */
 HfsmResult hfsm_res_handled(void) {
     return (HfsmResult) { .type = hfsm.res.HANDLED, .next_state = NULL };
 }
 
+/**
+ * @brief 返回一个表示事件已处理并进行状态转换的结果
+ * @param next_state 目标状态指针
+ * @return HfsmResult 结果类型为 TRANSITION，next_state 字段指向目标状态
+ */
 HfsmResult hfsm_res_transition(const HfsmState* next_state) {
     return (HfsmResult) { .type = hfsm.res.TRANSITION, .next_state = next_state };
 }
 
-#pragma GCC diagnostic pop
-
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 分发事件到状态机实例的当前状态及其祖先状态
+ * @param m 状态机实例指针
+ * @param e 事件指针
+ * @return HfsmResult 处理结果，可能是 IGNORE、HANDLED 或 TRANSITION
+ */
 static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e) {
     if(m == NULL || e == NULL || m->current_state == NULL) return hfsm.res.ignore();
 
@@ -183,6 +268,12 @@ static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e) {
     return hfsm.res.ignore();
 }
 
+/**
+ * @brief 查找两个状态的最近公共祖先
+ * @param s1 状态指针1
+ * @param s2 状态指针2
+ * @return 最近公共祖先状态指针，若没有公共祖先则返回 NULL
+ */
 static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2) {
     if(!s1 || !s2) return NULL;
 
@@ -206,6 +297,12 @@ static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2) {
     return deeper;
 }
 
+/**
+ * @brief 从状态 from 退出到状态 to（不包括 to），调用每个状态的 exit 钩子函数
+ * @param from 起始状态指针
+ * @param to 目标状态指针
+ * @param m 状态机实例指针
+ */
 static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m) {
     const HfsmState* s = from;
     while(s && s != to) {
@@ -214,6 +311,12 @@ static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* 
     }
 }
 
+/**
+ * @brief 从状态 from 进入到状态 to（不包括 from），调用每个状态的 entry 钩子函数
+ * @param from 起始状态指针
+ * @param to 目标状态指针
+ * @param m 状态机实例指针
+ */
 static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m) {
     const HfsmState* path[HFSM_DEPTH];
     int depth = 0;
@@ -235,6 +338,10 @@ static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachin
     }
 }
 
+/**
+ * @brief 执行当前状态及其祖先状态的 action 函数
+ * @param m 状态机实例指针
+ */
 static void execute_action(HfsmMachine* m) {
     const HfsmState* s = m->current_state;
     while(s) {

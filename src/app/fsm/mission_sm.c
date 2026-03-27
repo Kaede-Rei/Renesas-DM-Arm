@@ -14,6 +14,15 @@
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
+/**
+ * @brief mission 状态机实例
+ * @param init 初始化函数，参数为 WiFi 连接信息指针
+ * @param post 事件发布函数，参数为事件 ID 和可选数据指针
+ * @param process 状态机处理函数，需在主循环中定期调用
+ * @param update_dm_feedback 电机反馈更新函数，参数为电机反馈数据
+ * @param state 获取当前状态名称函数，返回字符串
+ * @param context 获取当前业务上下文函数，返回指向 MissionContext 的指针
+ */
 const struct MissionInstance mission_instance = {
     .init = mission_sm_init,
     .post = mission_sm_post,
@@ -28,6 +37,9 @@ static MissionContext s_ctx;
 
 // ! ========================= 状 态 机 声 明 ========================= ! //
 
+/**
+ * @brief 业务状态定义
+ */
 #define SX(name, parent) \
     static HfsmResult handle_##name(HfsmMachine* m, const HfsmEvent* e); \
     static void entry_##name(HfsmMachine* m); \
@@ -37,6 +49,9 @@ static MissionContext s_ctx;
 #include "mission_def_state.inc"
 #undef SX
 
+/**
+ * @brief 定义状态结构体
+ */
 #define SX(n, p) \
     static const HfsmState state_##n = { \
         .name = #n, \
@@ -69,6 +84,10 @@ static bool search_reachable_pose(MissionContext* ctx);
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 初始化状态机，设置初始状态和上下文
+ * @param info WiFi 连接信息指针，将存储在上下文中供
+ */
 void mission_sm_init(WifiBtConnectInfo* info) {
     s_ctx = (MissionContext){ 0 };
     s_ctx.wifi_info = info;
@@ -76,14 +95,27 @@ void mission_sm_init(WifiBtConnectInfo* info) {
     hfsm.init(&s_machine, &state_init, &s_ctx);
 }
 
+/**
+ * @brief 发布事件到状态机
+ * @param event 事件 ID，需为 MissionEvent 枚举值
+ * @param data 可选数据指针，事件处理函数可根据需要使用
+ * @return true 如果事件成功发布并被状态机接受，false 如果事件无效或被拒绝
+ */
 bool mission_sm_post(MissionEvent event, void* data) {
     return hfsm.post(&s_machine, (HfsmEventId)event, data);
 }
 
+/**
+ * @brief 状态机处理函数，需在主循环中定期调用以处理事件和状态转换
+ */
 void mission_sm_process(void) {
     hfsm.process(&s_machine);
 }
 
+/**
+ * @brief 更新电机反馈数据，状态机内部使用这些数据进行状态转换和动作控制
+ * @param feedback 电机反馈数据结构，包含电机 ID、位置、速度等信息
+ */
 void mission_sm_update_dm_feedback(DmMotorFeedback feedback) {
     if(feedback.id >= 1 && feedback.id <= 6) {
         s_ctx.dm_fb[feedback.id] = feedback;
@@ -91,46 +123,89 @@ void mission_sm_update_dm_feedback(DmMotorFeedback feedback) {
     }
 }
 
+/**
+ * @brief 获取当前状态名称，主要用于调试和日志记录
+ * @return 当前状态的字符串名称，如果状态机未初始化或状态无效则返回 "null"
+ */
 const char* mission_sm_state(void) {
     const HfsmState* s = hfsm.state(&s_machine);
     return s ? s->name : "null";
 }
 
+/**
+ * @brief 获取当前业务上下文，包含错误信息、WiFi 连接信息、目标杂草数据、目标位姿、IK 求解结果、电机反馈等
+ * @return 指向当前业务上下文的指针，调用者应避免修改返回的上下文数据
+ */
 const MissionContext* mission_sm_context(void) {
     return const_ctx_of(&s_machine);
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
+/**
+ * @brief 获取可修改的业务上下文指针
+ * @param m 状态机指针
+ * @return 指向业务上下文的指针，调用者可修改返回的上下文数据
+ */
 static MissionContext* ctx_of(HfsmMachine* m) {
     return (MissionContext*)hfsm.context(m);
 }
 
+/**
+ * @brief 获取只读的业务上下文指针
+ * @param m 状态机指针
+ * @return 指向业务上下文的指针，调用者应避免修改返回的上下文数据
+ */
 static const MissionContext* const_ctx_of(const HfsmMachine* m) {
     return (const MissionContext*)hfsm.const_context(m);
 }
 
+/**
+ * @brief 重置业务上下文，清除除 WiFi 连接信息外的所有数据
+ * @param ctx 业务上下文指针
+ */
 static void reset_context(MissionContext* ctx) {
     WifiBtConnectInfo* wifi_info = ctx->wifi_info;
     *ctx = (MissionContext){ 0 };
     ctx->wifi_info = wifi_info;
 }
 
+/**
+ * @brief 设置当前错误信息，状态机进入 fault 状态时会记录错误信息以供调试
+ * @param ctx 业务上下文指针
+ * @param error 错误信息字符串，调用者应确保字符串在上下文使用期间有效
+ */
 static void set_error(MissionContext* ctx, const char* error) {
     if(ctx == NULL) return;
     ctx->error = error;
 }
 
+/**
+ * @brief 发布事件到状态机的简化函数，封装了事件 ID 和数据参数
+ * @param event 事件 ID，需为 MissionEvent 枚举值
+ * @param data 可选数据指针，事件处理函数可根据需要使用
+ * @return true 如果事件成功发布并被状态机接受，false 如果事件无效或被拒绝
+ */
 static bool post_event(MissionEvent event, void* data) {
     return mission_sm_post(event, data);
 }
 
+/**
+ * @brief 发布事件到状态机的简化函数，适用于无数据事件
+ * @param event 事件 ID，需为 MissionEvent 枚举值
+ * @return true 如果事件成功发布并被状态机接受，false 如果事件无效或被拒绝
+ */
 static void clear_dm_feedback_valid(MissionContext* ctx) {
     for(uint8_t i = 1; i <= 6; ++i) {
         ctx->dm_fb_valid[i] = false;
     }
 }
 
+/**
+ * @brief 检查所有电机反馈数据是否准备就绪
+ * @param ctx 业务上下文指针
+ * @return true 如果所有电机反馈数据均有效，false 如果至少有一个电机反馈数据无效
+ */
 static bool all_feedback_ready(const MissionContext* ctx) {
     for(uint8_t i = 1; i <= 6; ++i) {
         if(!ctx->dm_fb_valid[i]) return false;
@@ -138,6 +213,12 @@ static bool all_feedback_ready(const MissionContext* ctx) {
     return true;
 }
 
+/**
+ * @brief 检查当前电机位置是否已达到目标位姿，允许一定的误差范围
+ * @param ctx 业务上下文指针，包含当前电机反馈和 IK 求解结果
+ * @param pos_err 位置误差容限，单位为弧度，通常设置为 0.1 弧度左右
+ * @return true 如果所有电机位置均在目标位姿的误差范围内，false 如果至少有一个电机位置未达到目标位姿
+ */
 static bool joints_reached_target(const MissionContext* ctx, float pos_err) {
     return
         fabsf(ctx->dm_fb[1].pos - ctx->ik_result.joint_1) <= pos_err &&
@@ -148,6 +229,12 @@ static bool joints_reached_target(const MissionContext* ctx, float pos_err) {
         fabsf(ctx->dm_fb[6].pos - ctx->ik_result.joint_6) <= pos_err;
 }
 
+/**
+ * @brief 检查当前电机位置是否已达到零位，允许一定的误差范围
+ * @param ctx 业务上下文指针，包含当前电机反馈
+ * @param pos_err 位置误差容限，单位为弧度，通常设置为 0.1 弧度左右
+ * @return true 如果所有电机位置均在零位的误差范围内，false 如果至少有一个电机位置未达到零位
+ */
 static bool joints_reached_zero(const MissionContext* ctx, float pos_err) {
     return
         fabsf(ctx->dm_fb[1].pos - 0.0f) <= pos_err &&
@@ -158,6 +245,13 @@ static bool joints_reached_zero(const MissionContext* ctx, float pos_err) {
         fabsf(ctx->dm_fb[6].pos - 0.0f) <= pos_err;
 }
 
+/**
+ * @brief 生成瞄准位姿，基于目标杂草位置和理想手臂位置计算一个可达的位姿
+ * @param source 理想手臂位置，通常在目标上方
+ * @param target 目标杂草位置
+ * @param out 输出位姿指针，函数成功时填充为计算得到的瞄准位姿
+ * @return true 如果成功生成瞄准位姿，false 如果计算失败（如目标过近或过远导致无法生成有效位姿）
+ */
 static bool generate_aim_pose(Vector3 source, Vector3 target, Pose* out) {
     if(out == NULL) return false;
 
@@ -221,6 +315,11 @@ static bool generate_aim_pose(Vector3 source, Vector3 target, Pose* out) {
     return true;
 }
 
+/**
+ * @brief 搜索可达的瞄准位姿，基于理想位姿在周围进行微调搜索，直到找到一个 IK 可解的位姿
+ * @param ctx 业务上下文指针，包含目标杂草数据和用于存储搜索结果的字段
+ * @return true 如果找到可达的瞄准位姿并成功计算 IK 解，false 如果搜索失败
+ */
 static bool search_reachable_pose(MissionContext* ctx) {
     Vector3 ideal_pos = { 0.0f, 0.2f, 0.3f };
     Vector3 target_pos = { ctx->weed.x, ctx->weed.y, ctx->weed.z };
@@ -262,7 +361,7 @@ static bool search_reachable_pose(MissionContext* ctx) {
 
 
 /**
- * @brief init
+ * @brief init 状态
  */
 static HfsmResult handle_init(HfsmMachine* m, const HfsmEvent* e) {
     (void)m;
@@ -287,7 +386,7 @@ static void action_init(HfsmMachine* m) {
 
 
 /**
- * @brief active
+ * @brief active 状态
  */
 static HfsmResult handle_active(HfsmMachine* m, const HfsmEvent* e) {
     (void)m;
@@ -311,7 +410,7 @@ static void action_active(HfsmMachine* m) {
 
 
 /**
- * @brief idle
+ * @brief idle 状态
  */
 static HfsmResult handle_idle(HfsmMachine* m, const HfsmEvent* e) {
     MissionContext* ctx = ctx_of(m);
@@ -345,7 +444,7 @@ static void action_idle(HfsmMachine* m) {
 
 
 /**
- * @brief plan_aim
+ * @brief plan_aim 状态
  */
 static HfsmResult handle_plan_aim(HfsmMachine* m, const HfsmEvent* e) {
     (void)m;
@@ -395,7 +494,7 @@ static void action_plan_aim(HfsmMachine* m) {
 
 
 /**
- * @brief moving
+ * @brief moving 状态
  */
 static HfsmResult handle_moving(HfsmMachine* m, const HfsmEvent* e) {
     (void)m;
@@ -442,7 +541,7 @@ static void action_moving(HfsmMachine* m) {
 
 
 /**
- * @brief lasering
+ * @brief lasering 状态
  */
 static HfsmResult handle_lasering(HfsmMachine* m, const HfsmEvent* e) {
     (void)m;
@@ -478,7 +577,7 @@ static void action_lasering(HfsmMachine* m) {
 
 
 /**
- * @brief finish
+ * @brief finish 状态
  */
 static HfsmResult handle_finish(HfsmMachine* m, const HfsmEvent* e) {
     (void)m;
@@ -525,7 +624,7 @@ static void action_finish(HfsmMachine* m) {
 
 
 /**
- * @brief fault
+ * @brief fault 状态
  */
 static HfsmResult handle_fault(HfsmMachine* m, const HfsmEvent* e) {
     (void)m;
