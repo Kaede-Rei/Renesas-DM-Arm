@@ -288,10 +288,10 @@ WifiBtStatus wifi_bt_enter_transparent(uint16_t socket_id) {
 void wifi_bt_exit_transparent(void) {
     if(!config.is_transparent_mode) return;
 
-    delay_ms(300);
+    delay_ms(500);
     uart_write(config.uart, (uint8_t*)"+++", 3);
     uart_wait_tx_complete(config.uart);
-    delay_ms(300);
+    delay_ms(500);
 
     config.is_transparent_mode = false;
 

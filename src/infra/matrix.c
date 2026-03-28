@@ -494,7 +494,7 @@ MatrixErrorCode matrix_to_quat(const Matrix* const R, float quat[4]) {
     else {
         if(R->pdata[0 * 3 + 0] > R->pdata[1 * 3 + 1] && R->pdata[0 * 3 + 0] > R->pdata[2 * 3 + 2]) {
             S = 2 * sqrtf(1.0f + R->pdata[0 * 3 + 0] - R->pdata[1 * 3 + 1] - R->pdata[2 * 3 + 2]);
-            qw = R->pdata[2 * 3 + 1] - R->pdata[1 * 3 + 2] / S;
+            qw = (R->pdata[2 * 3 + 1] - R->pdata[1 * 3 + 2]) / S;
             qx = 0.25f * S;
             qy = (R->pdata[0 * 3 + 1] + R->pdata[1 * 3 + 0]) / S;
             qz = (R->pdata[0 * 3 + 2] + R->pdata[2 * 3 + 0]) / S;

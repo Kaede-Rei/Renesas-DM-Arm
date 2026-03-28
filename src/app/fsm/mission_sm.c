@@ -96,6 +96,7 @@ static bool search_reachable_pose(MissionContext* ctx);
 void mission_sm_init(WifiBtConnectInfo* info) {
     s_ctx = (MissionContext){ 0 };
     s_ctx.wifi_info = info;
+    led.on();
 
     hfsm.init(&s_machine, &state_init, &s_ctx);
 }

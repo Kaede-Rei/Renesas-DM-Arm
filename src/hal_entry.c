@@ -121,6 +121,15 @@ void hal_entry(void) {
     static WifiBtStatus net_status;
     static bsp_io_level_t fault_restore;
 
+    if(wifi.connect(&info) == wifi.OK) {
+        if(wifi.enter_transparent(info.socket_port) == wifi.OK) {
+            printf("进入透传模式成功\r\n");
+        }
+        else {
+            printf("进入透传模式失败\r\n");
+        }
+    }
+
     while(1) {
         mission.process();
         gpio_read(BSP_IO_PORT_00_PIN_00, &fault_restore);
