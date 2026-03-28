@@ -128,7 +128,7 @@ void hal_entry(void) {
             if(wifi.process(&frame_buf, &frame_len) == wifi.FRAME_READY) {
                 comms.process(frame_buf, frame_len);
                 comms.get_weed(&weed_data);
-                if(weed_data.id == 0xFF) {
+                if(weed_data.id == 18) {
                     printf("[FSM] 杂草已全部处理完毕\r\n");
                     comms.reset();
                     weed_data = (WeedData){ 0 };
