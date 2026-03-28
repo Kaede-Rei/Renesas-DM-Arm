@@ -88,6 +88,7 @@ typedef void(*HfsmHookFn)(HfsmMachine* m);
  * @param entry 进入钩子函数指针
  * @param exit 退出钩子函数指针
  * @param action 内部动作函数指针
+ * @param user_data 用户自定义数据指针，供状态处理函数使用
  */
 struct HfsmState {
     const char* name;
@@ -97,16 +98,23 @@ struct HfsmState {
     HfsmHookFn entry;
     HfsmHookFn exit;
     HfsmHookFn action;
+
+    void* user_data;
 };
 
 /**
  * @brief 状态机实例结构体
  * @param current_state 当前状态指针
- * @param pending_event 待处理事件
+ * @param dispatching_state 正在处理事件的状态指针
  * @param context 用户自定义上下文指针
+ * @param queue 事件队列数组，存储待处理事件
+ * @param queue_head 事件队列头索引
+ * @param queue_tail 事件队列尾索引
+ * @param queue_count 事件队列中待处理事件的数量
  */
 struct HfsmMachine {
     const HfsmState* current_state;
+    const HfsmState* dispatching_state;
     void* context;
 
     HfsmEvent queue[HFSM_PENDING_QUEUE_MAX];
@@ -156,6 +164,12 @@ extern const struct HfsmInstance {
      * @return 当前状态指针，若 m 为 NULL 则返回 NULL
      */
     const HfsmState* (*state)(const HfsmMachine* m);
+    /**
+     * @brief 正在处理事件的状态指针，供状态处理函数使用
+     * @param m 状态机实例指针
+     * @return 正在处理事件的状态指针，若 m 为 NULL 则返回 NULL
+     */
+    const HfsmState* (*dispatching)(const HfsmMachine* m);
     /**
      * @brief 获取状态机的上下文指针
      * @param m 状态机实例指针
@@ -223,12 +237,17 @@ bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, const void* data);
 void hfsm_clear(HfsmMachine* m);
 void hfsm_process(HfsmMachine* m);
 void hfsm_process_all(HfsmMachine* m);
+
 const HfsmState* hfsm_get_current_state(const HfsmMachine* m);
+const HfsmState* hfsm_get_dispatching_state(const HfsmMachine* m);
+
 void* hfsm_get_context(HfsmMachine* m);
 const void* hfsm_get_const_context(const HfsmMachine* m);
+
 bool hfsm_is_descendant_of(const HfsmState* state, const HfsmState* ancestor);
 bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state);
 bool hfsm_has_pending_event(const HfsmMachine* m);
+
 HfsmResult hfsm_res_ignore(void);
 HfsmResult hfsm_res_handled(void);
 HfsmResult hfsm_res_transition(const HfsmState* next_state);

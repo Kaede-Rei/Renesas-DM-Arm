@@ -15,6 +15,7 @@
  * @param clear 清除状态机实例的待处理事件
  * @param process 处理状态机实例的待处理事件
  * @param state 获取状态机实例的当前状态
+ * @param dispatching 获取状态机实例正在处理事件的状态指针
  * @param context 获取状态机实例的上下文指针
  * @param const_context 获取状态机实例的上下文指针（只读）
  * @param is_descendant_of 判断一个状态是否是另一个状态的子状态
@@ -33,6 +34,7 @@ const struct HfsmInstance hfsm_instance = {
     .process = hfsm_process,
     .process_all = hfsm_process_all,
     .state = hfsm_get_current_state,
+    .dispatching = hfsm_get_dispatching_state,
     .context = hfsm_get_context,
     .const_context = hfsm_get_const_context,
     .is_descendant_of = hfsm_is_descendant_of,
@@ -69,6 +71,7 @@ void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context) {
     if(m == NULL) return;
 
     m->current_state = NULL;
+    m->dispatching_state = NULL;
     m->queue_head = 0;
     m->queue_tail = 0;
     m->queue_count = 0;
@@ -139,7 +142,11 @@ void hfsm_process(HfsmMachine* m) {
 #if HFSM_RUN_PARENT_ACTIONS
     execute_action(m);
 #else
-    if(m->current_state->action) m->current_state->action(m);
+    if(m->current_state->action) {
+        m->dispatching_state = m->current_state;
+        m->current_state->action(m);
+        m->dispatching_state = NULL;
+    }
 #endif
 }
 
@@ -167,7 +174,11 @@ void hfsm_process_all(HfsmMachine* m) {
 #if HFSM_RUN_PARENT_ACTIONS
             execute_action(m);
 #else
-            if(m->current_state->action) m->current_state->action(m);
+            if(m->current_state->action) {
+                m->dispatching_state = m->current_state;
+                m->current_state->action(m);
+                m->dispatching_state = NULL;
+            }
 #endif
         }
     }
@@ -177,7 +188,11 @@ void hfsm_process_all(HfsmMachine* m) {
 #if HFSM_RUN_PARENT_ACTIONS
     execute_action(m);
 #else
-    if(m->current_state->action) m->current_state->action(m);
+    if(m->current_state->action) {
+        m->dispatching_state = m->current_state;
+        m->current_state->action(m);
+        m->dispatching_state = NULL;
+    }
 #endif
 }
 
@@ -190,6 +205,17 @@ const HfsmState* hfsm_get_current_state(const HfsmMachine* m) {
     if(m == NULL) return NULL;
 
     return m->current_state;
+}
+
+/**
+ * @brief 获取状态机实例正在处理事件的状态指针
+ * @param m 状态机实例指针
+ * @return 正在处理事件的状态指针，若 m 为 NULL 则返回 NULL
+ */
+const HfsmState* hfsm_get_dispatching_state(const HfsmMachine* m) {
+    if(m == NULL) return NULL;
+
+    return m->dispatching_state;
 }
 
 /**
@@ -315,7 +341,9 @@ static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e) {
     const HfsmState* state = m->current_state;
     while(state != NULL) {
         if(state->handle != NULL) {
+            m->dispatching_state = state;
             HfsmResult result = state->handle(m, e);
+            m->dispatching_state = NULL;
             if(result.type == hfsm.res.HANDLED) return result;
             if(result.type == hfsm.res.TRANSITION && result.next_state != NULL) return result;
         }
@@ -363,7 +391,11 @@ static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2) {
 static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m) {
     const HfsmState* s = from;
     while(s && s != to) {
-        if(s->exit) s->exit(m);
+        if(s->exit) {
+            m->dispatching_state = s;
+            s->exit(m);
+            m->dispatching_state = NULL;
+        }
         s = s->parent;
     }
 }
@@ -392,7 +424,11 @@ static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachin
     while(depth--) {
         s = path[depth];
         m->current_state = s;
-        if(s->entry) s->entry(m);
+        if(s->entry) {
+            m->dispatching_state = s;
+            s->entry(m);
+            m->dispatching_state = NULL;
+        }
     }
 }
 
@@ -403,7 +439,11 @@ static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachin
 static void execute_action(HfsmMachine* m) {
     const HfsmState* s = m->current_state;
     while(s) {
-        if(s->action) s->action(m);
+        if(s->action) {
+            m->dispatching_state = s;
+            s->action(m);
+            m->dispatching_state = NULL;
+        }
         s = s->parent;
     }
 }

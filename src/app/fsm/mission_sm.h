@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "app/fsm/mission_context.h"
+#include "mission_context.h"
 
 #include "device/motor.h"
 #include "device/wifi_bt.h"

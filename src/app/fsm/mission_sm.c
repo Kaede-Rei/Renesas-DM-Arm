@@ -13,7 +13,7 @@ typedef union {
 } MissionEventData;
 #define HFSM_EVENT_DATA_TYPE MissionEventData
 
-#include "infra/hfsm.h"
+#include "infra/hfsm/hfsm.h"
 #include "infra/delay.h"
 #include "infra/matrix.h"
 
