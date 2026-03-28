@@ -1,6 +1,8 @@
 #ifndef _hfsm_h_
 #define _hfsm_h_
 
+#include "hfsm_config.h"
+
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -26,7 +28,7 @@ enum { HFSM_EVENT_NONE = 0 };
  */
 typedef struct {
     HfsmEventId id;
-    void* data;
+    HFSM_EVENT_DATA_TYPE data;
 } HfsmEvent;
 
 /**
@@ -105,8 +107,12 @@ struct HfsmState {
  */
 struct HfsmMachine {
     const HfsmState* current_state;
-    HfsmEvent pending_event;
     void* context;
+
+    HfsmEvent queue[HFSM_PENDING_QUEUE_MAX];
+    uint8_t queue_head;
+    uint8_t queue_tail;
+    uint8_t queue_count;
 };
 
 /**
@@ -128,7 +134,7 @@ extern const struct HfsmInstance {
      * @param data 事件数据指针
      * @return 发布成功返回 true，失败返回 false
      */
-    bool(*post)(HfsmMachine* m, HfsmEventId event_id, void* data);
+    bool(*post)(HfsmMachine* m, HfsmEventId event_id, const void* data);
     /**
      * @brief 清除状态机的待处理事件
      * @param m 状态机实例指针
@@ -139,6 +145,11 @@ extern const struct HfsmInstance {
      * @param m 状态机实例指针
      */
     void(*process)(HfsmMachine* m);
+    /**
+     * @brief 一次性处理完所有待处理事件，直到队列为空
+     * @param m 状态机实例指针
+     */
+    void(*process_all)(HfsmMachine* m);
     /**
      * @brief 获取状态机的当前状态
      * @param m 状态机实例指针
@@ -208,9 +219,10 @@ extern const struct HfsmInstance {
 // ! ========================= 接 口 函 数 声 明 ========================= ! //
 
 void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context);
-bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, void* data);
+bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, const void* data);
 void hfsm_clear(HfsmMachine* m);
 void hfsm_process(HfsmMachine* m);
+void hfsm_process_all(HfsmMachine* m);
 const HfsmState* hfsm_get_current_state(const HfsmMachine* m);
 void* hfsm_get_context(HfsmMachine* m);
 const void* hfsm_get_const_context(const HfsmMachine* m);

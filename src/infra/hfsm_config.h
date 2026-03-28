@@ -1,6 +1,8 @@
 #ifndef _hfsm_config_h_
 #define _hfsm_config_h_
 
+#include <stdint.h>
+
 /**
  * @brief HFSM 最大状态层级深度
  */
@@ -23,10 +25,30 @@
 #endif
 
 /**
- * @brief TODO: 状态机待处理事件队列的最大长度
+ * @brief 状态机待处理事件队列的最大长度
  */
-// #ifndef HFSM_PENDING_MAX
-// #define HFSM_PENDING_MAX 8
-// #endif
+#ifndef HFSM_PENDING_QUEUE_MAX
+#define HFSM_PENDING_QUEUE_MAX 8
+#endif
+
+/**
+ * @brief 状态机事件链条最大长度，必须大于等于 HFSM_PENDING_QUEUE_MAX
+ */
+#ifndef HFSM_MAX_CHAIN_LENGTH
+#define HFSM_MAX_CHAIN_LENGTH 2 * HFSM_PENDING_QUEUE_MAX
+#endif
+
+/**
+ * @brief 默认的事件数据类型，用户可以通过定义 HFSM_EVENT_DATA_TYPE 来覆盖默认类型
+ */
+#ifndef HFSM_EVENT_DATA_TYPE
+typedef union {
+    void* ptr;
+    int32_t i32;
+    uint32_t u32;
+    float f;
+} HfsmEventData;
+#define HFSM_EVENT_DATA_TYPE HfsmEventData
+#endif
 
 #endif

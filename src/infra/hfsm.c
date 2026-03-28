@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
@@ -30,6 +31,7 @@ const struct HfsmInstance hfsm_instance = {
     .post = hfsm_post,
     .clear = hfsm_clear,
     .process = hfsm_process,
+    .process_all = hfsm_process_all,
     .state = hfsm_get_current_state,
     .context = hfsm_get_context,
     .const_context = hfsm_get_const_context,
@@ -48,6 +50,7 @@ const struct HfsmInstance hfsm_instance = {
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
+static bool pop_event(HfsmMachine* m, HfsmEvent* out);
 static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e);
 static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2);
 static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m);
@@ -66,8 +69,9 @@ void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context) {
     if(m == NULL) return;
 
     m->current_state = NULL;
-    m->pending_event.id = HFSM_EVENT_NONE;
-    m->pending_event.data = NULL;
+    m->queue_head = 0;
+    m->queue_tail = 0;
+    m->queue_count = 0;
     m->context = context;
 
     if(initial_state == NULL) return;
@@ -83,12 +87,18 @@ void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context) {
  * @param data 事件数据指针
  * @return true 表示事件发送成功，false 表示失败
  */
-bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, void* data) {
+bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, const void* data) {
     if(m == NULL || event_id == HFSM_EVENT_NONE) return false;
-    if(m->pending_event.id != HFSM_EVENT_NONE) return false;
+    if(m->queue_count >= HFSM_PENDING_QUEUE_MAX) return false;
 
-    m->pending_event.id = event_id;
-    m->pending_event.data = data;
+    HfsmEvent* dst = &m->queue[m->queue_tail];
+    dst->id = event_id;
+
+    if(data != NULL) memcpy(&dst->data, data, sizeof(HFSM_EVENT_DATA_TYPE));
+    else memset(&dst->data, 0, sizeof(HFSM_EVENT_DATA_TYPE));
+
+    m->queue_tail = (uint8_t)((m->queue_tail + 1) % HFSM_PENDING_QUEUE_MAX);
+    ++m->queue_count;
 
     return true;
 }
@@ -101,8 +111,9 @@ bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, void* data) {
 void hfsm_clear(HfsmMachine* m) {
     if(m == NULL) return;
 
-    m->pending_event.id = HFSM_EVENT_NONE;
-    m->pending_event.data = NULL;
+    m->queue_head = 0;
+    m->queue_tail = 0;
+    m->queue_count = 0;
 }
 
 /**
@@ -113,20 +124,55 @@ void hfsm_process(HfsmMachine* m) {
     if(m == NULL || m->current_state == NULL) return;
 
     const HfsmState* current_state = m->current_state;
-    if(m->pending_event.id != HFSM_EVENT_NONE) {
-        HfsmResult result = dispatch(m, &m->pending_event);
+    if(m->queue_count > 0) {
+        HfsmEvent event;
+        if(!pop_event(m, &event)) return;
+        HfsmResult result = dispatch(m, &event);
 
-        if(result.type == HFSM_RES_TRANSITION && result.next_state != NULL && result.next_state != current_state) {
-            const HfsmState* lca = find_lca(current_state, result.next_state);
-            exit_up_to(current_state, lca, m);
-            enter_down_to(lca, result.next_state, m);
-            m->current_state = result.next_state;
+        if(result.type == hfsm.res.TRANSITION && result.next_state != NULL && result.next_state != current_state) {
+            hfsm_transition(m, result.next_state);
         }
-
-        hfsm_clear(m);
     }
 
     if(m->current_state == NULL) return;
+
+#if HFSM_RUN_PARENT_ACTIONS
+    execute_action(m);
+#else
+    if(m->current_state->action) m->current_state->action(m);
+#endif
+}
+
+/**
+ * @brief 一次性处理完所有待处理事件，直到队列为空
+ * @param m 状态机实例指针
+ */
+void hfsm_process_all(HfsmMachine* m) {
+    if(m == NULL || m->current_state == NULL) return;
+
+    uint8_t processed = 0;
+    HfsmEvent event;
+    bool state_changed = false;
+
+    while(pop_event(m, &event) && processed++ < HFSM_MAX_CHAIN_LENGTH) {
+        const HfsmState* before_dispatch_state = m->current_state;
+        HfsmResult result = dispatch(m, &event);
+
+        if(result.type == hfsm.res.TRANSITION && result.next_state != NULL) {
+            hfsm_transition(m, result.next_state);
+        }
+
+        if(m->current_state != before_dispatch_state && m->current_state != NULL) {
+            state_changed = true;
+#if HFSM_RUN_PARENT_ACTIONS
+            execute_action(m);
+#else
+            if(m->current_state->action) m->current_state->action(m);
+#endif
+        }
+    }
+
+    if(m->current_state == NULL || state_changed) return;
 
 #if HFSM_RUN_PARENT_ACTIONS
     execute_action(m);
@@ -194,16 +240,11 @@ bool hfsm_is_descendant_of(const HfsmState* state, const HfsmState* ancestor) {
  */
 bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state) {
     if(m == NULL || m->current_state == NULL || target_state == NULL) return false;
+    if(m->current_state == target_state) return true;
 
-    const HfsmState* current_state = m->current_state;
-    if(current_state == target_state) return true;
-
-    const HfsmState* lca = find_lca(current_state, target_state);
-
-    exit_up_to(current_state, lca, m);
+    const HfsmState* lca = find_lca(m->current_state, target_state);
+    exit_up_to(m->current_state, lca, m);
     enter_down_to(lca, target_state, m);
-
-    m->current_state = target_state;
 
     return true;
 }
@@ -216,7 +257,7 @@ bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state) {
 bool hfsm_has_pending_event(const HfsmMachine* m) {
     if(m == NULL) return false;
 
-    return m->pending_event.id != HFSM_EVENT_NONE;
+    return m->queue_count > 0;
 }
 
 /**
@@ -247,6 +288,22 @@ HfsmResult hfsm_res_transition(const HfsmState* next_state) {
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
 /**
+ * @brief 从状态机实例的事件队列中弹出一个事件
+ * @param m 状态机实例指针
+ * @param out 输出参数，存储弹出的事件
+ * @return true 表示成功弹出事件，false 表示队列为空或 m 为 NULL
+ */
+static bool pop_event(HfsmMachine* m, HfsmEvent* out) {
+    if(m == NULL || out == NULL || m->queue_count == 0) return false;
+
+    *out = m->queue[m->queue_head];
+    m->queue_head = (uint8_t)((m->queue_head + 1) % HFSM_PENDING_QUEUE_MAX);
+    --m->queue_count;
+
+    return true;
+}
+
+/**
  * @brief 分发事件到状态机实例的当前状态及其祖先状态
  * @param m 状态机实例指针
  * @param e 事件指针
@@ -259,8 +316,8 @@ static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e) {
     while(state != NULL) {
         if(state->handle != NULL) {
             HfsmResult result = state->handle(m, e);
-            if(result.type == HFSM_RES_HANDLED) return result;
-            if(result.type == HFSM_RES_TRANSITION && result.next_state != NULL) return result;
+            if(result.type == hfsm.res.HANDLED) return result;
+            if(result.type == hfsm.res.TRANSITION && result.next_state != NULL) return result;
         }
         state = state->parent;
     }
@@ -334,6 +391,7 @@ static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachin
 
     while(depth--) {
         s = path[depth];
+        m->current_state = s;
         if(s->entry) s->entry(m);
     }
 }

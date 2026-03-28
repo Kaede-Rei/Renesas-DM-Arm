@@ -1,10 +1,17 @@
-#include "app/fsm/mission_sm.h"
+#include "mission_sm.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
 
+#include "app/packet_parser.h"
 #include "domain/arm_kine.h"
+
+typedef union {
+    void* ptr;
+    const WeedData* weed;
+} MissionEventData;
+#define HFSM_EVENT_DATA_TYPE MissionEventData
 
 #include "infra/hfsm.h"
 #include "infra/delay.h"
@@ -91,7 +98,7 @@ static bool search_reachable_pose(MissionContext* ctx);
 
 /**
  * @brief 初始化状态机，设置初始状态和上下文
- * @param info WiFi 连接信息指针，将存储在上下文中供
+ * @param info WiFi 连接信息指针，将存储在上下文中供后续使用
  */
 void mission_sm_init(WifiBtConnectInfo* info) {
     s_ctx = (MissionContext){ 0 };
@@ -425,11 +432,11 @@ static HfsmResult handle_idle(HfsmMachine* m, const HfsmEvent* e) {
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_START_SEARCH:
         {
-            if(e->data == NULL) {
+            if(e->data.weed == NULL) {
                 set_error(ctx, "未提供杂草数据");
                 return hfsm.res.transition(&state_fault);
             }
-            ctx->weed = *(const WeedData*)e->data;
+            ctx->weed = *e->data.weed;
             return hfsm.res.transition(&state_plan_aim);
         }
         case MISSION_EVENT_FINISH:
