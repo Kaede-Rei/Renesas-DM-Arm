@@ -1,5 +1,5 @@
-#ifndef _hfsm_config_h_
-#define _hfsm_config_h_
+#ifndef _hfsm_core_config_h_
+#define _hfsm_core_config_h_
 
 #include <stdint.h>
 
@@ -8,6 +8,26 @@
  */
 #ifndef HFSM_DEPTH
 #define HFSM_DEPTH 8
+#endif
+
+/**
+ * @brief 状态数量
+ */
+#ifndef HFSM_MAX_STATES
+#define HFSM_MAX_STATES 16
+#endif
+
+/**
+ * @brief 默认的事件数据类型，用户可以通过定义 HFSM_EVENT_DATA_TYPE 来覆盖默认类型
+ */
+#ifndef HFSM_EVENT_DATA_TYPE
+typedef union {
+    void* ptr;
+    int32_t i32;
+    uint32_t u32;
+    float f;
+} HfsmEventData;
+#define HFSM_EVENT_DATA_TYPE HfsmEventData
 #endif
 
 /**
@@ -36,19 +56,6 @@
  */
 #ifndef HFSM_MAX_CHAIN_LENGTH
 #define HFSM_MAX_CHAIN_LENGTH 2 * HFSM_PENDING_QUEUE_MAX
-#endif
-
-/**
- * @brief 默认的事件数据类型，用户可以通过定义 HFSM_EVENT_DATA_TYPE 来覆盖默认类型
- */
-#ifndef HFSM_EVENT_DATA_TYPE
-typedef union {
-    void* ptr;
-    int32_t i32;
-    uint32_t u32;
-    float f;
-} HfsmEventData;
-#define HFSM_EVENT_DATA_TYPE HfsmEventData
 #endif
 
 #endif

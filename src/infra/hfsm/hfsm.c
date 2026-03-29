@@ -1,449 +1,282 @@
 #include "hfsm.h"
-#include "hfsm_config.h"
+#include "hfsm_core.h"
 
-#include <assert.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 
 // ! ========================= 变 量 声 明 ========================= ! //
 
-/**
- * @brief 全局 HFSM 实例，提供接口函数和资源函数的访问
- * @param init 初始化状态机实例
- * @param post 向状态机实例发送事件
- * @param clear 清除状态机实例的待处理事件
- * @param process 处理状态机实例的待处理事件
- * @param state 获取状态机实例的当前状态
- * @param dispatching 获取状态机实例正在处理事件的状态指针
- * @param context 获取状态机实例的上下文指针
- * @param const_context 获取状态机实例的上下文指针（只读）
- * @param is_descendant_of 判断一个状态是否是另一个状态的子状态
- * @param transition 从当前状态转换到目标状态
- * @param has_pending 判断状态机实例是否有待处理事件
- * @param res 资源函数结构体，包含 ignore、handled 和 transition 三个函数
- *      - ignore 返回一个表示事件被忽略的结果
- *      - handled 返回一个表示事件已处理但不进行状态转换的结果
- *      - transition 返回一个表示事件已处理并进行状态转换的结果，next_state 字段指向目标状态
- */
-#define RX(name) .name = HFSM_RES_##name,
-const struct HfsmInstance hfsm_instance = {
+#define hfsm hfsm_api_instance
+
+#define SX(name) .name = HFSM_STATUS_##name,
+const struct HfsmApi hfsm_api_instance = {
+    {
+        HFSM_STATUS_TABLE
+    },
     .init = hfsm_init,
+    .set_context = hfsm_set_context,
+    .set_initial = hfsm_set_initial,
+    .add_state = hfsm_add_state,
+    .add_substate = hfsm_add_substate,
+    .set_parent = hfsm_set_parent,
+    .set_handle = hfsm_set_handle,
+    .set_entry = hfsm_set_entry,
+    .set_exit = hfsm_set_exit,
+    .set_action = hfsm_set_action,
+    .set_user_data = hfsm_set_user_data,
+    .start = hfsm_start,
+    .pause = hfsm_pause,
+    .go_on = hfsm_go_on,
+    .reset = hfsm_reset,
     .post = hfsm_post,
     .clear = hfsm_clear,
     .process = hfsm_process,
     .process_all = hfsm_process_all,
-    .state = hfsm_get_current_state,
-    .dispatching = hfsm_get_dispatching_state,
-    .context = hfsm_get_context,
-    .const_context = hfsm_get_const_context,
-    .is_descendant_of = hfsm_is_descendant_of,
-    .transition = hfsm_transition,
-    .has_pending = hfsm_has_pending_event,
     .res = {
-        .ignore = hfsm_res_ignore,
-        .handled = hfsm_res_handled,
-        .transition = hfsm_res_transition,
-        HFSM_RES_TYPE
-    }
+        .ignore = hfsm_ignore,
+        .handled = hfsm_handled,
+        .transition = hfsm_transition
+    },
+    .state = hfsm_state,
+    .dispatching = hfsm_dispatching,
+    .context = hfsm_context,
+    .const_context = hfsm_const_context
 };
-#undef RX
-#define hfsm hfsm_instance
+#undef SX
 
 // ! ========================= 私 有 函 数 声 明 ========================= ! //
 
-static bool pop_event(HfsmMachine* m, HfsmEvent* out);
-static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e);
-static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2);
-static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m);
-static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m);
-static void execute_action(HfsmMachine* m);
+
 
 // ! ========================= 接 口 函 数 实 现 ========================= ! //
 
-/**
- * @brief 初始化状态机实例
- * @param m 状态机实例指针
- * @param initial_state 初始状态指针
- * @param context 用户自定义上下文指针
- */
-void hfsm_init(HfsmMachine* m, const HfsmState* initial_state, void* context) {
-    if(m == NULL) return;
+HfsmStatus hfsm_init(Hfsm* fsm, void* context) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
 
-    m->current_state = NULL;
-    m->dispatching_state = NULL;
-    m->queue_head = 0;
-    m->queue_tail = 0;
-    m->queue_count = 0;
-    m->context = context;
+    memset(fsm, 0, sizeof(Hfsm));
+    fsm->machine.context = context;
+    fsm->started = false;
+    fsm->initialized = true;
 
-    if(initial_state == NULL) return;
-
-    m->current_state = initial_state;
-    enter_down_to(NULL, initial_state, m);
+    return hfsm.OK;
 }
 
-/**
- * @brief 向状态机实例发送事件
- * @param m 状态机实例指针
- * @param event_id 事件ID
- * @param data 事件数据指针
- * @return true 表示事件发送成功，false 表示失败
- */
-bool hfsm_post(HfsmMachine* m, HfsmEventId event_id, const void* data) {
-    if(m == NULL || event_id == HFSM_EVENT_NONE) return false;
-    if(m->queue_count >= HFSM_PENDING_QUEUE_MAX) return false;
+HfsmStatus hfsm_set_context(Hfsm* fsm, void* context) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->started) return hfsm.STARTED;
 
-    HfsmEvent* dst = &m->queue[m->queue_tail];
-    dst->id = event_id;
+    fsm->machine.context = context;
 
-    if(data != NULL) memcpy(&dst->data, data, sizeof(HFSM_EVENT_DATA_TYPE));
-    else memset(&dst->data, 0, sizeof(HFSM_EVENT_DATA_TYPE));
-
-    m->queue_tail = (uint8_t)((m->queue_tail + 1) % HFSM_PENDING_QUEUE_MAX);
-    ++m->queue_count;
-
-    return true;
+    return hfsm.OK;
 }
 
-/**
- * @brief 获取状态机实例的当前状态
- * @param m 状态机实例指针
- * @return 当前状态指针，若 m 为 NULL 则返回 NULL
- */
-void hfsm_clear(HfsmMachine* m) {
-    if(m == NULL) return;
+HfsmStatus hfsm_set_initial(Hfsm* fsm, const HfsmState* initial_state) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(initial_state == NULL) return hfsm.INVALID_ARG;
+    if(fsm->started) return hfsm.STARTED;
 
-    m->queue_head = 0;
-    m->queue_tail = 0;
-    m->queue_count = 0;
+    fsm->initial_state = initial_state;
+
+    return hfsm.OK;
 }
 
-/**
- * @brief 处理状态机实例的待处理事件
- * @param m 状态机实例指针
- */
-void hfsm_process(HfsmMachine* m) {
-    if(m == NULL || m->current_state == NULL) return;
+HfsmState* hfsm_add_state(Hfsm* fsm, const char* name) {
+    if(fsm == NULL || name == NULL) return NULL;
+    if(fsm->initialized == false) return NULL;
+    if(fsm->state_count >= HFSM_MAX_STATES) return NULL;
+    if(fsm->started) return NULL;
 
-    const HfsmState* current_state = m->current_state;
-    if(m->queue_count > 0) {
-        HfsmEvent event;
-        if(!pop_event(m, &event)) return;
-        HfsmResult result = dispatch(m, &event);
+    HfsmState* s = &fsm->states[fsm->state_count++];
+    memset(s, 0, sizeof(HfsmState));
+    s->name = name;
 
-        if(result.type == hfsm.res.TRANSITION && result.next_state != NULL && result.next_state != current_state) {
-            hfsm_transition(m, result.next_state);
-        }
-    }
-
-    if(m->current_state == NULL) return;
-
-#if HFSM_RUN_PARENT_ACTIONS
-    execute_action(m);
-#else
-    if(m->current_state->action) {
-        m->dispatching_state = m->current_state;
-        m->current_state->action(m);
-        m->dispatching_state = NULL;
-    }
-#endif
+    return s;
 }
 
-/**
- * @brief 一次性处理完所有待处理事件，直到队列为空
- * @param m 状态机实例指针
- */
-void hfsm_process_all(HfsmMachine* m) {
-    if(m == NULL || m->current_state == NULL) return;
+HfsmState* hfsm_add_substate(Hfsm* fsm, HfsmState* parent, const char* name) {
+    if(parent == NULL) return NULL;
 
-    uint8_t processed = 0;
-    HfsmEvent event;
-    bool state_changed = false;
+    HfsmState* s = hfsm_add_state(fsm, name);
+    if(s == NULL) return NULL;
 
-    while(pop_event(m, &event) && processed++ < HFSM_MAX_CHAIN_LENGTH) {
-        const HfsmState* before_dispatch_state = m->current_state;
-        HfsmResult result = dispatch(m, &event);
+    s->parent = parent;
 
-        if(result.type == hfsm.res.TRANSITION && result.next_state != NULL) {
-            hfsm_transition(m, result.next_state);
-        }
-
-        if(m->current_state != before_dispatch_state && m->current_state != NULL) {
-            state_changed = true;
-#if HFSM_RUN_PARENT_ACTIONS
-            execute_action(m);
-#else
-            if(m->current_state->action) {
-                m->dispatching_state = m->current_state;
-                m->current_state->action(m);
-                m->dispatching_state = NULL;
-            }
-#endif
-        }
-    }
-
-    if(m->current_state == NULL || state_changed) return;
-
-#if HFSM_RUN_PARENT_ACTIONS
-    execute_action(m);
-#else
-    if(m->current_state->action) {
-        m->dispatching_state = m->current_state;
-        m->current_state->action(m);
-        m->dispatching_state = NULL;
-    }
-#endif
+    return s;
 }
 
-/**
- * @brief 获取状态机实例的当前状态
- * @param m 状态机实例指针
- * @return 当前状态指针，若 m 为 NULL 则返回 NULL
- */
-const HfsmState* hfsm_get_current_state(const HfsmMachine* m) {
-    if(m == NULL) return NULL;
+HfsmState* hfsm_set_parent(HfsmState* s, const HfsmState* parent) {
+    if(s == NULL) return NULL;
+    s->parent = parent;
 
-    return m->current_state;
+    return s;
 }
 
-/**
- * @brief 获取状态机实例正在处理事件的状态指针
- * @param m 状态机实例指针
- * @return 正在处理事件的状态指针，若 m 为 NULL 则返回 NULL
- */
-const HfsmState* hfsm_get_dispatching_state(const HfsmMachine* m) {
-    if(m == NULL) return NULL;
+HfsmState* hfsm_set_handle(HfsmState* s, HfsmHandleFn handle) {
+    if(s == NULL) return NULL;
+    s->handle = handle;
 
-    return m->dispatching_state;
+    return s;
 }
 
-/**
- * @brief 获取状态机实例的上下文指针
- * @param m 状态机实例指针
- * @return 上下文指针，若 m 为 NULL 则返回 NULL
- */
-void* hfsm_get_context(HfsmMachine* m) {
-    if(m == NULL) return NULL;
+HfsmState* hfsm_set_entry(HfsmState* s, HfsmHookFn entry) {
+    if(s == NULL) return NULL;
+    s->entry = entry;
 
-    return m->context;
+    return s;
 }
 
-/**
- * @brief 获取状态机实例的上下文指针（只读）
- * @param m 状态机实例指针
- * @return 上下文指针，若 m 为 NULL 则返回 NULL
- */
-const void* hfsm_get_const_context(const HfsmMachine* m) {
-    if(m == NULL) return NULL;
+HfsmState* hfsm_set_exit(HfsmState* s, HfsmHookFn exit) {
+    if(s == NULL) return NULL;
+    s->exit = exit;
 
-    return m->context;
+    return s;
 }
 
-/**
- * @brief 判断一个状态是否是另一个状态的子状态
- * @param state 待判断状态指针
- * @param ancestor 祖先状态指针
- * @return 若 state 是 ancestor 的子状态返回 true，否则返回 false
- */
-bool hfsm_is_descendant_of(const HfsmState* state, const HfsmState* ancestor) {
-    if(state == NULL || ancestor == NULL) return false;
+HfsmState* hfsm_set_action(HfsmState* s, HfsmHookFn action) {
+    if(s == NULL) return NULL;
+    s->action = action;
 
-    const HfsmState* current = state;
-    while(current != NULL) {
-        if(current == ancestor) return true;
-        current = current->parent;
-    }
-
-    return false;
+    return s;
 }
 
-/**
- * @brief 从当前状态转换到目标状态
- * @param m 状态机实例指针
- * @param target_state 目标状态指针
- * @return 转换成功返回 true，失败返回 false
- */
-bool hfsm_transition(HfsmMachine* m, const HfsmState* target_state) {
-    if(m == NULL || m->current_state == NULL || target_state == NULL) return false;
-    if(m->current_state == target_state) return true;
+HfsmState* hfsm_set_user_data(HfsmState* s, void* user_data) {
+    if(s == NULL) return NULL;
+    s->user_data = user_data;
 
-    const HfsmState* lca = find_lca(m->current_state, target_state);
-    exit_up_to(m->current_state, lca, m);
-    enter_down_to(lca, target_state, m);
-
-    return true;
+    return s;
 }
 
-/**
- * @brief 判断状态机实例是否有待处理事件
- * @param m 状态机实例指针
- * @return true 表示有待处理事件，false 表示没有
- */
-bool hfsm_has_pending_event(const HfsmMachine* m) {
-    if(m == NULL) return false;
+HfsmStatus hfsm_start(Hfsm* fsm) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->initial_state == NULL) return hfsm.NO_INITIAL_STATE;
+    if(fsm->started) return hfsm.STARTED;
 
-    return m->queue_count > 0;
+    hfsm_core.init(&fsm->machine, fsm->initial_state, fsm->machine.context);
+    fsm->started = true;
+
+    return hfsm.OK;
 }
 
-/**
- * @brief 返回一个表示事件被忽略的结果
- * @return HfsmResult 结果类型为 IGNORE，next_state 字段为 NULL
- */
-HfsmResult hfsm_res_ignore(void) {
-    return (HfsmResult) { .type = hfsm.res.IGNORE, .next_state = NULL };
+HfsmStatus hfsm_pause(Hfsm* fsm) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->started == false) return hfsm.NOT_STARTED;
+
+    fsm->started = false;
+
+    return hfsm.OK;
 }
 
-/**
- * @brief 返回一个表示事件已处理但不进行状态转换的结果
- * @return HfsmResult 结果类型为 HANDLED，next_state 字段为 NULL
- */
-HfsmResult hfsm_res_handled(void) {
-    return (HfsmResult) { .type = hfsm.res.HANDLED, .next_state = NULL };
+HfsmStatus hfsm_go_on(Hfsm* fsm) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->started) return hfsm.STARTED;
+
+    fsm->started = true;
+
+    return hfsm.OK;
 }
 
-/**
- * @brief 返回一个表示事件已处理并进行状态转换的结果
- * @param next_state 目标状态指针
- * @return HfsmResult 结果类型为 TRANSITION，next_state 字段指向目标状态
- */
-HfsmResult hfsm_res_transition(const HfsmState* next_state) {
-    return (HfsmResult) { .type = hfsm.res.TRANSITION, .next_state = next_state };
+HfsmStatus hfsm_reset(Hfsm* fsm) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+
+    void* context = fsm->machine.context;
+    hfsm_core.init(&fsm->machine, fsm->initial_state, context);
+    fsm->started = true;
+
+    return hfsm.OK;
+}
+
+HfsmStatus hfsm_post(Hfsm* fsm, HfsmEventId event_id, const void* data) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->started == false) return hfsm.NOT_STARTED;
+    if(event_id == HFSM_EVENT_NONE) return hfsm.INVALID_ARG;
+
+    return hfsm_core.post(&fsm->machine, event_id, data) ? hfsm.OK : hfsm.NO_SPACE;
+}
+
+HfsmStatus hfsm_clear(Hfsm* fsm) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->started == false) return hfsm.NOT_STARTED;
+
+    hfsm_core.clear(&fsm->machine);
+
+    return hfsm.OK;
+}
+
+HfsmStatus hfsm_process(Hfsm* fsm) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->started == false) return hfsm.NOT_STARTED;
+
+    hfsm_core.process(&fsm->machine);
+
+    return hfsm.OK;
+}
+
+HfsmStatus hfsm_process_all(Hfsm* fsm) {
+    if(fsm == NULL) return hfsm.INVALID_ARG;
+    if(fsm->initialized == false) return hfsm.NOT_INIT;
+    if(fsm->started == false) return hfsm.NOT_STARTED;
+
+    hfsm_core.process_all(&fsm->machine);
+
+    return hfsm.OK;
+}
+
+HfsmResult hfsm_ignore(void) {
+    HfsmResult res = {
+        .type = hfsm_core.res.IGNORE,
+        .next_state = NULL
+    };
+
+    return res;
+}
+
+HfsmResult hfsm_handled(void) {
+    HfsmResult res = {
+        .type = hfsm_core.res.HANDLED,
+        .next_state = NULL
+    };
+
+    return res;
+}
+
+HfsmResult hfsm_transition(const HfsmState* next_state) {
+    HfsmResult res = {
+        .type = hfsm_core.res.TRANSITION,
+        .next_state = next_state
+    };
+
+    return res;
+}
+
+const HfsmState* hfsm_state(const Hfsm* fsm) {
+    if(fsm == NULL) return NULL;
+    return hfsm_core.state(&fsm->machine);
+}
+
+const HfsmState* hfsm_dispatching(const Hfsm* fsm) {
+    if(fsm == NULL) return NULL;
+    return hfsm_core.dispatching(&fsm->machine);
+}
+
+void* hfsm_context(Hfsm* fsm) {
+    if(fsm == NULL) return NULL;
+    return hfsm_core.context(&fsm->machine);
+}
+
+const void* hfsm_const_context(const Hfsm* fsm) {
+    if(fsm == NULL) return NULL;
+    return hfsm_core.const_context(&fsm->machine);
 }
 
 // ! ========================= 私 有 函 数 实 现 ========================= ! //
 
-/**
- * @brief 从状态机实例的事件队列中弹出一个事件
- * @param m 状态机实例指针
- * @param out 输出参数，存储弹出的事件
- * @return true 表示成功弹出事件，false 表示队列为空或 m 为 NULL
- */
-static bool pop_event(HfsmMachine* m, HfsmEvent* out) {
-    if(m == NULL || out == NULL || m->queue_count == 0) return false;
 
-    *out = m->queue[m->queue_head];
-    m->queue_head = (uint8_t)((m->queue_head + 1) % HFSM_PENDING_QUEUE_MAX);
-    --m->queue_count;
-
-    return true;
-}
-
-/**
- * @brief 分发事件到状态机实例的当前状态及其祖先状态
- * @param m 状态机实例指针
- * @param e 事件指针
- * @return HfsmResult 处理结果，可能是 IGNORE、HANDLED 或 TRANSITION
- */
-static HfsmResult dispatch(HfsmMachine* m, const HfsmEvent* e) {
-    if(m == NULL || e == NULL || m->current_state == NULL) return hfsm.res.ignore();
-
-    const HfsmState* state = m->current_state;
-    while(state != NULL) {
-        if(state->handle != NULL) {
-            m->dispatching_state = state;
-            HfsmResult result = state->handle(m, e);
-            m->dispatching_state = NULL;
-            if(result.type == hfsm.res.HANDLED) return result;
-            if(result.type == hfsm.res.TRANSITION && result.next_state != NULL) return result;
-        }
-        state = state->parent;
-    }
-
-    return hfsm.res.ignore();
-}
-
-/**
- * @brief 查找两个状态的最近公共祖先
- * @param s1 状态指针1
- * @param s2 状态指针2
- * @return 最近公共祖先状态指针，若没有公共祖先则返回 NULL
- */
-static const HfsmState* find_lca(const HfsmState* s1, const HfsmState* s2) {
-    if(!s1 || !s2) return NULL;
-
-    int depth1 = 0, depth2 = 0;
-
-    const HfsmState* s = s1;
-    while(s) { depth1++; s = s->parent; }
-    s = s2;
-    while(s) { depth2++; s = s->parent; }
-
-    const HfsmState* deeper = depth1 > depth2 ? s1 : s2;
-    const HfsmState* shallower = depth1 > depth2 ? s2 : s1;
-    int diff = abs(depth1 - depth2);
-
-    while(diff--) { deeper = deeper->parent; }
-    while(deeper != shallower) {
-        deeper = deeper->parent;
-        shallower = shallower->parent;
-    }
-
-    return deeper;
-}
-
-/**
- * @brief 从状态 from 退出到状态 to（不包括 to），调用每个状态的 exit 钩子函数
- * @param from 起始状态指针
- * @param to 目标状态指针
- * @param m 状态机实例指针
- */
-static void exit_up_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m) {
-    const HfsmState* s = from;
-    while(s && s != to) {
-        if(s->exit) {
-            m->dispatching_state = s;
-            s->exit(m);
-            m->dispatching_state = NULL;
-        }
-        s = s->parent;
-    }
-}
-
-/**
- * @brief 从状态 from 进入到状态 to（不包括 from），调用每个状态的 entry 钩子函数
- * @param from 起始状态指针
- * @param to 目标状态指针
- * @param m 状态机实例指针
- */
-static void enter_down_to(const HfsmState* from, const HfsmState* to, HfsmMachine* m) {
-    const HfsmState* path[HFSM_DEPTH];
-    int depth = 0;
-    const HfsmState* s = to;
-
-    while(s && s != from) {
-#if HFSM_ENABLE_ASSERT
-        assert(depth < HFSM_DEPTH);
-#else
-        if(depth >= HFSM_DEPTH) return;
-#endif
-        path[depth++] = s;
-        s = s->parent;
-    }
-
-    while(depth--) {
-        s = path[depth];
-        m->current_state = s;
-        if(s->entry) {
-            m->dispatching_state = s;
-            s->entry(m);
-            m->dispatching_state = NULL;
-        }
-    }
-}
-
-/**
- * @brief 执行当前状态及其祖先状态的 action 函数
- * @param m 状态机实例指针
- */
-static void execute_action(HfsmMachine* m) {
-    const HfsmState* s = m->current_state;
-    while(s) {
-        if(s->action) {
-            m->dispatching_state = s;
-            s->action(m);
-            m->dispatching_state = NULL;
-        }
-        s = s->parent;
-    }
-}

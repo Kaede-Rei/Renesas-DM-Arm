@@ -13,7 +13,7 @@ typedef union {
 } MissionEventData;
 #define HFSM_EVENT_DATA_TYPE MissionEventData
 
-#include "infra/hfsm/hfsm.h"
+#include "infra/hfsm/hfsm_core.h"
 #include "infra/delay.h"
 #include "infra/matrix.h"
 
@@ -105,7 +105,7 @@ void mission_sm_init(WifiBtConnectInfo* info) {
     s_ctx.wifi_info = info;
     led.on();
 
-    hfsm.init(&s_machine, &state_init, &s_ctx);
+    hfsm_core.init(&s_machine, &state_init, &s_ctx);
 }
 
 /**
@@ -115,14 +115,14 @@ void mission_sm_init(WifiBtConnectInfo* info) {
  * @return true 如果事件成功发布并被状态机接受，false 如果事件无效或被拒绝
  */
 bool mission_sm_post(MissionEvent event, void* data) {
-    return hfsm.post(&s_machine, (HfsmEventId)event, data);
+    return hfsm_core.post(&s_machine, (HfsmEventId)event, data);
 }
 
 /**
  * @brief 状态机处理函数，需在主循环中定期调用以处理事件和状态转换
  */
 void mission_sm_process(void) {
-    hfsm.process(&s_machine);
+    hfsm_core.process(&s_machine);
 }
 
 /**
@@ -141,7 +141,7 @@ void mission_sm_update_dm_feedback(DmMotorFeedback feedback) {
  * @return 当前状态的字符串名称，如果状态机未初始化或状态无效则返回 "null"
  */
 const char* mission_sm_state(void) {
-    const HfsmState* s = hfsm.state(&s_machine);
+    const HfsmState* s = hfsm_core.state(&s_machine);
     return s ? s->name : "null";
 }
 
@@ -161,7 +161,7 @@ const MissionContext* mission_sm_context(void) {
  * @return 指向业务上下文的指针，调用者可修改返回的上下文数据
  */
 static MissionContext* ctx_of(HfsmMachine* m) {
-    return (MissionContext*)hfsm.context(m);
+    return (MissionContext*)hfsm_core.context(m);
 }
 
 /**
@@ -170,7 +170,7 @@ static MissionContext* ctx_of(HfsmMachine* m) {
  * @return 指向业务上下文的指针，调用者应避免修改返回的上下文数据
  */
 static const MissionContext* const_ctx_of(const HfsmMachine* m) {
-    return (const MissionContext*)hfsm.const_context(m);
+    return (const MissionContext*)hfsm_core.const_context(m);
 }
 
 /**
@@ -382,9 +382,9 @@ static HfsmResult handle_init(HfsmMachine* m, const HfsmEvent* e) {
 
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_INIT_COMPLETE:
-            return hfsm.res.transition(&state_idle);
+            return hfsm_core.res.transition(&state_idle);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_init(HfsmMachine* m) {
@@ -407,9 +407,9 @@ static HfsmResult handle_active(HfsmMachine* m, const HfsmEvent* e) {
 
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_DETECT_ERROR:
-            return hfsm.res.transition(&state_fault);
+            return hfsm_core.res.transition(&state_fault);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_active(HfsmMachine* m) {
@@ -434,15 +434,15 @@ static HfsmResult handle_idle(HfsmMachine* m, const HfsmEvent* e) {
         {
             if(e->data.weed == NULL) {
                 set_error(ctx, "未提供杂草数据");
-                return hfsm.res.transition(&state_fault);
+                return hfsm_core.res.transition(&state_fault);
             }
             ctx->weed = *e->data.weed;
-            return hfsm.res.transition(&state_plan_aim);
+            return hfsm_core.res.transition(&state_plan_aim);
         }
         case MISSION_EVENT_FINISH:
-            return hfsm.res.transition(&state_finish);
+            return hfsm_core.res.transition(&state_finish);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_idle(HfsmMachine* m) {
@@ -465,9 +465,9 @@ static HfsmResult handle_plan_aim(HfsmMachine* m, const HfsmEvent* e) {
 
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_SEARCH_COMPLETE:
-            return hfsm.res.transition(&state_moving);
+            return hfsm_core.res.transition(&state_moving);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_plan_aim(HfsmMachine* m) {
@@ -515,9 +515,9 @@ static HfsmResult handle_moving(HfsmMachine* m, const HfsmEvent* e) {
 
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_MOVE_COMPLETE:
-            return hfsm.res.transition(&state_lasering);
+            return hfsm_core.res.transition(&state_lasering);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_moving(HfsmMachine* m) {
@@ -562,9 +562,9 @@ static HfsmResult handle_lasering(HfsmMachine* m, const HfsmEvent* e) {
 
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_LASER_COMPLETE:
-            return hfsm.res.transition(&state_idle);
+            return hfsm_core.res.transition(&state_idle);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_lasering(HfsmMachine* m) {
@@ -598,9 +598,9 @@ static HfsmResult handle_finish(HfsmMachine* m, const HfsmEvent* e) {
 
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_FINISH_COMPLETE:
-            return hfsm.res.transition(&state_idle);
+            return hfsm_core.res.transition(&state_idle);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_finish(HfsmMachine* m) {
@@ -645,9 +645,9 @@ static HfsmResult handle_fault(HfsmMachine* m, const HfsmEvent* e) {
 
     switch((MissionEvent)e->id) {
         case MISSION_EVENT_ERROR_COMPLETE:
-            return hfsm.res.transition(&state_init);
+            return hfsm_core.res.transition(&state_init);
         default:
-            return hfsm.res.ignore();
+            return hfsm_core.res.ignore();
     }
 }
 static void entry_fault(HfsmMachine* m) {
