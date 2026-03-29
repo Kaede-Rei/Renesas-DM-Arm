@@ -28,7 +28,7 @@ enum { HFSM_EVENT_NONE = 0 };
  */
 typedef struct {
     HfsmEventId id;
-    HFSM_EVENT_DATA_TYPE data;
+    HfsmEventData data;
 } HfsmEvent;
 
 /**

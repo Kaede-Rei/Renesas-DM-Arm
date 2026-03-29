@@ -18,17 +18,14 @@
 #endif
 
 /**
- * @brief 默认的事件数据类型，用户可以通过定义 HFSM_EVENT_DATA_TYPE 来覆盖默认类型
+ * @brief 事件数据类型，用户可以按需求自定义
  */
-#ifndef HFSM_EVENT_DATA_TYPE
 typedef union {
     void* ptr;
     int32_t i32;
     uint32_t u32;
     float f;
 } HfsmEventData;
-#define HFSM_EVENT_DATA_TYPE HfsmEventData
-#endif
 
 /**
  * @brief 状态机进程是否执行所有祖先状态的动作，1 表示执行，0 表示只执行当前状态的动作
