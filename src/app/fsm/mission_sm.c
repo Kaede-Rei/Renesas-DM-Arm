@@ -12,7 +12,6 @@ typedef union {
     const WeedData* weed;
 } MissionEventData;
 #define HFSM_EVENT_DATA_TYPE MissionEventData
-
 #include "infra/hfsm/hfsm_core.h"
 #include "infra/delay.h"
 #include "infra/matrix.h"
