@@ -1,4 +1,5 @@
 #include "protocol_parser.h"
+#include "infra/protocol_parser.h"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -102,6 +103,9 @@ FrameParserErrorCode FrameParserCreate(FrameParser* const self, RingBuf* const r
     self->_crc_accum_ = 0;
     self->_received_crc_ = 0;
 
+    self->_expected_length_ = 0;
+    self->_received_length_ = 0;
+
     return FRAME_PARSER_SUCCESS;
 
 }
@@ -126,7 +130,10 @@ RingBufErrorCode _rb_write(RingBuf* const self, const uint8_t data) {
         else self->_size_++;
     }
     else {
-        if(self->is_full(self)) return RING_BUF_ERR_FULL;
+        if(self->is_full(self)) {
+            protocol_parser_exit_critical();
+            return RING_BUF_ERR_FULL;
+        }
         self->_buf_[self->_write_idx_] = data;
         self->_write_idx_ = (uint16_t)((self->_write_idx_ + 1) % self->_capacity_);
         self->_size_++;
@@ -295,6 +302,10 @@ static FrameParserErrorCode _fp_process_(FrameParser* const self) {
                         return FRAME_PARSER_ERR_LENGTH_EXCEED;
                     }
                     else if(self->_expected_length_ == 0) {
+                        if(self->_crc_enabled_ == false) {
+                            self->_state_ = STATE_FRAME_COMPLETE;
+                            return FRAME_PARSER_SUCCESS;
+                        }
                         self->_state_ = STATE_READ_CRC;
                     }
                     else {

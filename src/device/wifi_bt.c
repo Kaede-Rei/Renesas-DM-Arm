@@ -160,7 +160,7 @@ WifiBtStatus wifi_bt_rejoin_ap(const char* ssid, const char* password) {
         send_raw("AT+WJOIN\r\n");
         if(!wait_str("+OK", 3, 10000)) return WIFI_BT_ERROR;
     }
-    else wifi_bt_join_ap(ssid, password);
+    else return wifi_bt_join_ap(ssid, password);
 
     return WIFI_BT_OK;
 }
@@ -352,8 +352,11 @@ WifiBtStatus wifi_bt_heartbeat(WifiBtConnectInfo* info, ms_t timeout_ms) {
                 printf("进入透传模式失败，断开连接重试...\r\n");
             }
         }
+        if(retry_count++ < 3) {
+            printf("连接失败，重试...\r\n");
+        }
         else {
-            printf("连接失败，重置模块...\r\n");
+            printf("多次连接失败，重置模块...\r\n");
             retry_count = 0;
             if(wifi_bt_reset(config.mode) == WIFI_BT_OK)
                 wifi_bt_join_ap(info->ssid, info->password);
