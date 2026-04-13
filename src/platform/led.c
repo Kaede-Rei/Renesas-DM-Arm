@@ -1,4 +1,3 @@
-
 #include "led.h"
 #include "hal_data.h"   // IWYU pragma: keep
 #include "simple_api.h"
